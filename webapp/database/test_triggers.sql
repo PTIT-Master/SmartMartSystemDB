@@ -150,16 +150,137 @@ EXCEPTION
 END $$;
 
 -- ============================================================================
--- TEST 4: WORK HOURS CALCULATION
+-- TEST 4: SHELF CATEGORY CONSISTENCY VALIDATION
 -- ============================================================================
 
 DO $$
 BEGIN
     RAISE NOTICE '';
-    RAISE NOTICE '=== TEST 4: Work Hours Calculation ===';
+    RAISE NOTICE '=== TEST 4: Shelf Category Consistency Validation ===';
 END $$;
 
--- Test 4: Work hours calculation
+-- Test 4a: Valid category match (should succeed)
+DO $$
+DECLARE
+    test_product_id INTEGER;
+    test_shelf_id INTEGER;
+    beverages_category_id INTEGER;
+BEGIN
+    -- Get beverages category ID
+    SELECT category_id INTO beverages_category_id 
+    FROM product_categories 
+    WHERE category_name = 'Beverages' 
+    LIMIT 1;
+    
+    -- Create a test product in beverages category
+    INSERT INTO products (product_code, product_name, category_id, supplier_id, 
+                         unit, import_price, selling_price, barcode)
+    VALUES ('BEVTEST', 'Test Beverage', beverages_category_id, 1, 'bottle', 1.00, 2.00, 'BEVTEST')
+    RETURNING product_id INTO test_product_id;
+    
+    -- Find a shelf designated for beverages category
+    SELECT shelf_id INTO test_shelf_id 
+    FROM display_shelves 
+    WHERE category_id = beverages_category_id 
+    LIMIT 1;
+    
+    -- This should succeed - product and shelf have matching categories
+    INSERT INTO shelf_layout (shelf_id, product_id, position_code, max_quantity)
+    VALUES (test_shelf_id, test_product_id, 'A1', 100);
+    
+    RAISE NOTICE '✅ Test 4a PASSED: Product correctly assigned to matching category shelf';
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE '❌ Test 4a FAILED: Valid category assignment rejected - %', SQLERRM;
+END $$;
+
+-- Test 4b: Invalid category mismatch (should fail)
+DO $$
+DECLARE
+    test_product_id INTEGER;
+    wrong_shelf_id INTEGER;
+    beverages_category_id INTEGER;
+    dairy_category_id INTEGER;
+BEGIN
+    -- Get category IDs
+    SELECT category_id INTO beverages_category_id 
+    FROM product_categories 
+    WHERE category_name = 'Beverages' 
+    LIMIT 1;
+    
+    SELECT category_id INTO dairy_category_id 
+    FROM product_categories 
+    WHERE category_name = 'Dairy Products' 
+    LIMIT 1;
+    
+    -- Get the beverage product from previous test
+    SELECT product_id INTO test_product_id 
+    FROM products 
+    WHERE product_code = 'BEVTEST';
+    
+    -- Find a shelf designated for dairy (different category)
+    SELECT shelf_id INTO wrong_shelf_id 
+    FROM display_shelves 
+    WHERE category_id = dairy_category_id 
+    LIMIT 1;
+    
+    -- This should fail - beverage product on dairy shelf
+    INSERT INTO shelf_layout (shelf_id, product_id, position_code, max_quantity)
+    VALUES (wrong_shelf_id, test_product_id, 'B1', 50);
+    
+    RAISE NOTICE '❌ Test 4b FAILED: Category mismatch should have been rejected';
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE '✅ Test 4b PASSED: Category validation working - %', SQLERRM;
+END $$;
+
+-- Test 4c: Shelf inventory category validation
+DO $$
+DECLARE
+    test_product_id INTEGER;
+    wrong_shelf_id INTEGER;
+    dairy_category_id INTEGER;
+BEGIN
+    -- Get dairy category and shelf
+    SELECT category_id INTO dairy_category_id 
+    FROM product_categories 
+    WHERE category_name = 'Dairy Products' 
+    LIMIT 1;
+    
+    SELECT shelf_id INTO wrong_shelf_id 
+    FROM display_shelves 
+    WHERE category_id = dairy_category_id 
+    LIMIT 1;
+    
+    -- Get beverage product (wrong category)
+    SELECT product_id INTO test_product_id 
+    FROM products 
+    WHERE product_code = 'BEVTEST';
+    
+    -- This should fail - trying to add beverage inventory to dairy shelf
+    INSERT INTO shelf_inventory (shelf_id, product_id, current_quantity)
+    VALUES (wrong_shelf_id, test_product_id, 25);
+    
+    RAISE NOTICE '❌ Test 4c FAILED: Shelf inventory category mismatch should have been rejected';
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE '✅ Test 4c PASSED: Shelf inventory category validation working - %', SQLERRM;
+END $$;
+
+-- ============================================================================
+-- TEST 5: WORK HOURS CALCULATION
+-- ============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=== TEST 5: Work Hours Calculation ===';
+END $$;
+
+-- Test 5: Work hours calculation
 DO $$
 DECLARE
     calculated_hours NUMERIC(5,2);
@@ -176,14 +297,14 @@ BEGIN
     RETURNING total_hours INTO calculated_hours;
     
     IF ABS(calculated_hours - expected_hours) < 0.01 THEN
-        RAISE NOTICE '✅ Test 4 PASSED: Work hours calculated correctly (% hours)', calculated_hours;
+        RAISE NOTICE '✅ Test 5 PASSED: Work hours calculated correctly (% hours)', calculated_hours;
     ELSE
-        RAISE NOTICE '❌ Test 4 FAILED: Work hours incorrect (% ≠ %)', calculated_hours, expected_hours;
+        RAISE NOTICE '❌ Test 5 FAILED: Work hours incorrect (% ≠ %)', calculated_hours, expected_hours;
     END IF;
     
 EXCEPTION
     WHEN OTHERS THEN
-        RAISE NOTICE '❌ Test 4 FAILED: %', SQLERRM;
+        RAISE NOTICE '❌ Test 5 FAILED: %', SQLERRM;
 END $$;
 
 -- ============================================================================
@@ -201,7 +322,10 @@ BEGIN
     );
     DELETE FROM sales_invoices WHERE invoice_no = 'INV-TEST';
     DELETE FROM employee_work_hours WHERE employee_id = 1 AND work_date = CURRENT_DATE;
-    DELETE FROM products WHERE product_code IN ('TEST001', 'TEST002', 'TS001');
+    DELETE FROM shelf_layout WHERE product_id IN (
+        SELECT product_id FROM products WHERE product_code = 'BEVTEST'
+    );
+    DELETE FROM products WHERE product_code IN ('TEST001', 'TEST002', 'TS001', 'BEVTEST');
     
     RAISE NOTICE '✅ Test data cleaned up successfully';
 END $$;

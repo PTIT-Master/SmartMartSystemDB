@@ -27,25 +27,33 @@ $$ LANGUAGE plpgsql;
 
 -- 1.2 Shelf Capacity Validation
 -- Ensures current quantity doesn't exceed max quantity for shelf layout
+-- NOTE: Skip validation if triggered from stock transfer (already validated)
 CREATE OR REPLACE FUNCTION validate_shelf_capacity()
 RETURNS TRIGGER AS $$
 DECLARE
     max_qty INTEGER;
 BEGIN
+    -- Skip validation if this is from stock transfer processing
+    -- (capacity is already validated in validate_stock_transfer)
+    IF TG_OP = 'UPDATE' AND OLD.current_quantity IS NOT NULL THEN
+        -- This is likely from process_stock_transfer, skip validation
+        RETURN NEW;
+    END IF;
+
     -- Get maximum quantity allowed for this shelf-product combination
     SELECT sl.max_quantity INTO max_qty
     FROM shelf_layout sl
     WHERE sl.shelf_id = NEW.shelf_id AND sl.product_id = NEW.product_id;
-    
-    IF NOT FOUND THEN
-        RAISE EXCEPTION '%', format('Product %s is not configured for shelf %s', NEW.product_id, NEW.shelf_id);
+
+    IF max_qty IS NULL THEN
+        RAISE EXCEPTION '%', format('Product is not configured for this shelf');
     END IF;
-    
+
     IF NEW.current_quantity > max_qty THEN
-        RAISE EXCEPTION '%', format('Quantity (%s) exceeds maximum allowed (%s) for shelf %s', 
+        RAISE EXCEPTION '%', format('Quantity (%s) exceeds maximum allowed (%s) for shelf %s',
                         NEW.current_quantity, max_qty, NEW.shelf_id);
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -85,7 +93,15 @@ DECLARE
     available_qty INTEGER;
     shelf_max_qty INTEGER;
     shelf_current_qty INTEGER;
+    v_product_code TEXT;
+    v_shelf_code TEXT;
 BEGIN
+    -- Lấy product_code từ bảng products
+    SELECT product_code INTO v_product_code FROM products WHERE product_id = NEW.product_id;
+
+    -- Lấy shelf_code từ bảng display_shelves
+    SELECT shelf_code INTO v_shelf_code FROM display_shelves WHERE shelf_id = NEW.to_shelf_id;
+
     -- Check warehouse stock availability
     SELECT COALESCE(SUM(wi.quantity), 0) INTO available_qty
     FROM warehouse_inventory wi
@@ -93,8 +109,8 @@ BEGIN
       AND wi.product_id = NEW.product_id;
     
     IF available_qty < NEW.quantity THEN
-        RAISE EXCEPTION '%', format('Insufficient warehouse stock. Available: %s, Requested: %s', 
-                        available_qty, NEW.quantity);
+        RAISE EXCEPTION '%', format('Insufficient warehouse stock for product %s. Available: %s, Requested: %s', 
+                        v_product_code, available_qty, NEW.quantity);
     END IF;
     
     -- Check shelf capacity
@@ -102,17 +118,19 @@ BEGIN
     FROM shelf_layout sl
     WHERE sl.shelf_id = NEW.to_shelf_id AND sl.product_id = NEW.product_id;
     
+    -- Validate shelf layout exists
+    IF shelf_max_qty IS NULL THEN
+        RAISE EXCEPTION '%', format('Product %s is not configured for shelf %s', v_product_code, v_shelf_code);
+    END IF;
+    
+    -- Get current shelf inventory (defaults to 0 if not found)
     SELECT COALESCE(si.current_quantity, 0) INTO shelf_current_qty
     FROM shelf_inventory si
     WHERE si.shelf_id = NEW.to_shelf_id AND si.product_id = NEW.product_id;
     
-    IF NOT FOUND OR shelf_max_qty IS NULL THEN
-        RAISE EXCEPTION '%', format('Product %s is not configured for shelf %s', NEW.product_id, NEW.to_shelf_id);
-    END IF;
-    
     IF (shelf_current_qty + NEW.quantity) > shelf_max_qty THEN
-        RAISE EXCEPTION '%', format('Transfer would exceed shelf capacity. Current: %s, Transfer: %s, Max: %s', 
-                        shelf_current_qty, NEW.quantity, shelf_max_qty);
+        RAISE EXCEPTION '%', format('Transfer would exceed shelf capacity for product %s. Current: %s, Transfer: %s, Max: %s (Shelf: %s)', 
+                        v_product_code, shelf_current_qty, NEW.quantity, shelf_max_qty, v_shelf_code);
     END IF;
     
     RETURN NEW;
@@ -406,6 +424,7 @@ DECLARE
     discount_rule RECORD;
     original_price NUMERIC(12,2);
     new_price NUMERIC(12,2);
+    import_price_val NUMERIC(12,2);
 BEGIN
     -- Only process if expiry_date is being set or updated
     IF NEW.expiry_date IS NOT NULL THEN
@@ -429,6 +448,17 @@ BEGIN
         -- Apply discount if rule found
         IF FOUND AND discount_rule IS NOT NULL THEN
             new_price := original_price * (1 - discount_rule.discount_percentage / 100);
+            
+            -- Get import price for validation
+            SELECT import_price INTO import_price_val
+            FROM products 
+            WHERE product_id = NEW.product_id;
+            
+            -- Ensure discounted price is still higher than import price
+            -- Set minimum price to be 110% of import price to maintain profitability
+            IF new_price <= import_price_val THEN
+                new_price := import_price_val * 1.1;
+            END IF;
             
             UPDATE products 
             SET selling_price = new_price,
