@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/supermarket/models"
@@ -104,8 +105,8 @@ func SeedData(db *gorm.DB) error {
 			return fmt.Errorf("failed to seed employee work hours: %w", err)
 		}
 
-		// 14. Seed Purchase Orders
-		if err := seedPurchaseOrders(tx, employeeMap, supplierMap, productMap); err != nil {
+		// 14. Seed Purchase Orders (this will also create warehouse inventory)
+		if err := seedPurchaseOrders(tx, employeeMap, supplierMap, productMap, warehouseMap); err != nil {
 			return fmt.Errorf("failed to seed purchase orders: %w", err)
 		}
 
@@ -159,10 +160,19 @@ func seedProductCategories(tx *gorm.DB) (map[string]uint, error) {
 		{CategoryName: "Đồ gia dụng", Description: strPtr("Đồ dùng gia đình")},
 		{CategoryName: "Đồ điện tử", Description: strPtr("Thiết bị điện tử tiêu dùng")},
 		{CategoryName: "Đồ bếp", Description: strPtr("Dụng cụ nhà bếp")},
-		{CategoryName: "Thực phẩm", Description: strPtr("Thực phẩm các loại")},
-		{CategoryName: "Đồ uống", Description: strPtr("Nước giải khát, đồ uống các loại")},
-		{CategoryName: "Mỹ phẩm", Description: strPtr("Mỹ phẩm và chăm sóc cá nhân")},
-		{CategoryName: "Thời trang", Description: strPtr("Quần áo, giày dép, phụ kiện")},
+		{CategoryName: "Thực phẩm - Đồ khô", Description: strPtr("Thực phẩm khô có hạn sử dụng dài")},
+		{CategoryName: "Thực phẩm - Rau quả", Description: strPtr("Rau củ quả tươi sống có hạn ngắn")},
+		{CategoryName: "Thực phẩm - Thịt cá", Description: strPtr("Thịt, cá và hải sản")},
+		{CategoryName: "Thực phẩm - Sữa trứng", Description: strPtr("Sữa, trứng và các sản phẩm từ sữa")},
+		{CategoryName: "Đồ uống - Có cồn", Description: strPtr("Bia, rượu và đồ uống có cồn")},
+		{CategoryName: "Đồ uống - Không cồn", Description: strPtr("Nước ngọt, nước suối và đồ uống không cồn")},
+		{CategoryName: "Đồ uống - Nóng", Description: strPtr("Cà phê, trà và đồ uống nóng")},
+		{CategoryName: "Mỹ phẩm - Chăm sóc da", Description: strPtr("Kem dưỡng da, sữa rửa mặt")},
+		{CategoryName: "Mỹ phẩm - Trang điểm", Description: strPtr("Son, phấn và đồ trang điểm")},
+		{CategoryName: "Mỹ phẩm - Vệ sinh cá nhân", Description: strPtr("Dầu gội, kem đánh răng, xà phòng")},
+		{CategoryName: "Thời trang - Nam", Description: strPtr("Quần áo nam và phụ kiện")},
+		{CategoryName: "Thời trang - Nữ", Description: strPtr("Quần áo nữ và phụ kiện")},
+		{CategoryName: "Thời trang - Unisex", Description: strPtr("Đồ dùng chung cho nam nữ")},
 	}
 
 	if err := tx.Create(&categories).Error; err != nil {
@@ -349,30 +359,146 @@ func seedEmployees(tx *gorm.DB, positionMap map[string]uint) (map[string]uint, e
 
 func seedProducts(tx *gorm.DB, categoryMap map[string]uint, supplierMap map[string]uint) (map[string]uint, error) {
 	products := []models.Product{
-		// Văn phòng phẩm (SUP003)
+		// Văn phòng phẩm (15 sản phẩm) - SUP003
 		{ProductCode: "VPP001", ProductName: "Bút bi Thiên Long", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cây", ImportPrice: 3000, SellingPrice: 5000, ShelfLifeDays: intPtr(365), LowStockThreshold: 20},
 		{ProductCode: "VPP002", ProductName: "Vở học sinh 96 trang", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Quyển", ImportPrice: 8000, SellingPrice: 12000, ShelfLifeDays: intPtr(365), LowStockThreshold: 30},
 		{ProductCode: "VPP003", ProductName: "Bút chì 2B", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cây", ImportPrice: 2000, SellingPrice: 3500, ShelfLifeDays: intPtr(365), LowStockThreshold: 25},
+		{ProductCode: "VPP004", ProductName: "Thước kẻ nhựa 30cm", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 5000, SellingPrice: 8000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		{ProductCode: "VPP005", ProductName: "Gôm tẩy Hồng Hà", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 1500, SellingPrice: 3000, ShelfLifeDays: intPtr(365), LowStockThreshold: 30},
+		{ProductCode: "VPP006", ProductName: "Bút máy học sinh", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cây", ImportPrice: 15000, SellingPrice: 25000, ShelfLifeDays: intPtr(365), LowStockThreshold: 10},
+		{ProductCode: "VPP007", ProductName: "Giấy A4 Double A", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Ream", ImportPrice: 45000, SellingPrice: 65000, ShelfLifeDays: intPtr(365), LowStockThreshold: 20},
+		{ProductCode: "VPP008", ProductName: "Keo dán UHU", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Tuýp", ImportPrice: 8000, SellingPrice: 12000, ShelfLifeDays: intPtr(730), LowStockThreshold: 25},
+		{ProductCode: "VPP009", ProductName: "Bìa hồ sơ", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 3000, SellingPrice: 5000, ShelfLifeDays: intPtr(365), LowStockThreshold: 20},
+		{ProductCode: "VPP010", ProductName: "Kẹp giấy", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Hộp", ImportPrice: 12000, SellingPrice: 18000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		{ProductCode: "VPP011", ProductName: "Bút dạ quang", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cây", ImportPrice: 8000, SellingPrice: 12000, ShelfLifeDays: intPtr(365), LowStockThreshold: 20},
+		{ProductCode: "VPP012", ProductName: "Stapler kim bấm", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 35000, SellingPrice: 55000, ShelfLifeDays: intPtr(365), LowStockThreshold: 8},
+		{ProductCode: "VPP013", ProductName: "Kim bấm số 10", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Hộp", ImportPrice: 5000, SellingPrice: 8000, ShelfLifeDays: intPtr(365), LowStockThreshold: 25},
+		{ProductCode: "VPP014", ProductName: "Bảng viết bút lông", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 150000, SellingPrice: 250000, ShelfLifeDays: intPtr(365), LowStockThreshold: 5},
+		{ProductCode: "VPP015", ProductName: "Máy tính Casio FX-580", CategoryID: categoryMap["Văn phòng phẩm"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 280000, SellingPrice: 450000, ShelfLifeDays: intPtr(365), LowStockThreshold: 10},
 
-		// Đồ gia dụng (SUP004)
+		// Đồ gia dụng (15 sản phẩm) - SUP004
 		{ProductCode: "GD001", ProductName: "Chảo chống dính 26cm", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 150000, SellingPrice: 250000, LowStockThreshold: 5},
 		{ProductCode: "GD002", ProductName: "Bộ nồi inox 3 món", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Bộ", ImportPrice: 350000, SellingPrice: 550000, LowStockThreshold: 3},
 		{ProductCode: "GD003", ProductName: "Khăn tắm cotton", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 45000, SellingPrice: 75000, LowStockThreshold: 10},
+		{ProductCode: "GD004", ProductName: "Bộ dao inox 6 món", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Bộ", ImportPrice: 120000, SellingPrice: 200000, LowStockThreshold: 8},
+		{ProductCode: "GD005", ProductName: "Thớt gỗ cao su", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 35000, SellingPrice: 60000, LowStockThreshold: 15},
+		{ProductCode: "GD006", ProductName: "Bộ chén đĩa sứ", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Bộ", ImportPrice: 180000, SellingPrice: 300000, LowStockThreshold: 6},
+		{ProductCode: "GD007", ProductName: "Gương soi trang điểm", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 80000, SellingPrice: 130000, LowStockThreshold: 12},
+		{ProductCode: "GD008", ProductName: "Thùng rác có nắp", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 65000, SellingPrice: 110000, LowStockThreshold: 10},
+		{ProductCode: "GD009", ProductName: "Dây phơi quần áo", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 25000, SellingPrice: 45000, LowStockThreshold: 20},
+		{ProductCode: "GD010", ProductName: "Bộ ly thủy tinh", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Bộ", ImportPrice: 90000, SellingPrice: 150000, LowStockThreshold: 10},
+		{ProductCode: "GD011", ProductName: "Giá để giày dép", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 120000, SellingPrice: 200000, LowStockThreshold: 8},
+		{ProductCode: "GD012", ProductName: "Rổ đựng đồ đa năng", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 55000, SellingPrice: 90000, LowStockThreshold: 15},
+		{ProductCode: "GD013", ProductName: "Kệ gia vị 3 tầng", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 85000, SellingPrice: 140000, LowStockThreshold: 8},
+		{ProductCode: "GD014", ProductName: "Bàn ủi hơi nước", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 300000, SellingPrice: 480000, LowStockThreshold: 5},
+		{ProductCode: "GD015", ProductName: "Tủ nhựa 5 ngăn", CategoryID: categoryMap["Đồ gia dụng"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 450000, SellingPrice: 750000, LowStockThreshold: 3},
 
-		// Đồ điện tử (SUP002)
+		// Đồ điện tử (15 sản phẩm) - SUP002
 		{ProductCode: "DT001", ProductName: "Tai nghe Bluetooth", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 200000, SellingPrice: 350000, LowStockThreshold: 10},
 		{ProductCode: "DT002", ProductName: "Sạc dự phòng 10000mAh", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 180000, SellingPrice: 300000, LowStockThreshold: 8},
 		{ProductCode: "DT003", ProductName: "Cáp USB Type-C", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 25000, SellingPrice: 50000, LowStockThreshold: 15},
+		{ProductCode: "DT004", ProductName: "Loa Bluetooth mini", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 150000, SellingPrice: 250000, LowStockThreshold: 12},
+		{ProductCode: "DT005", ProductName: "Chuột không dây", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 80000, SellingPrice: 130000, LowStockThreshold: 20},
+		{ProductCode: "DT006", ProductName: "Bàn phím gaming", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 350000, SellingPrice: 580000, LowStockThreshold: 8},
+		{ProductCode: "DT007", ProductName: "Webcam HD 720p", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 120000, SellingPrice: 200000, LowStockThreshold: 15},
+		{ProductCode: "DT008", ProductName: "Đèn LED USB", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 35000, SellingPrice: 60000, LowStockThreshold: 25},
+		{ProductCode: "DT009", ProductName: "Hub USB 4 cổng", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 65000, SellingPrice: 110000, LowStockThreshold: 18},
+		{ProductCode: "DT010", ProductName: "Thẻ nhớ MicroSD 32GB", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 90000, SellingPrice: 150000, LowStockThreshold: 20},
+		{ProductCode: "DT011", ProductName: "Giá đỡ điện thoại", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 45000, SellingPrice: 75000, LowStockThreshold: 22},
+		{ProductCode: "DT012", ProductName: "Ốp lưng iPhone", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 30000, SellingPrice: 55000, LowStockThreshold: 30},
+		{ProductCode: "DT013", ProductName: "Miếng dán màn hình", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 15000, SellingPrice: 30000, LowStockThreshold: 40},
+		{ProductCode: "DT014", ProductName: "Pin AA Panasonic", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Vỉ", ImportPrice: 12000, SellingPrice: 20000, LowStockThreshold: 35},
+		{ProductCode: "DT015", ProductName: "Đồng hồ thông minh", CategoryID: categoryMap["Đồ điện tử"], SupplierID: supplierMap["SUP002"], Unit: "Cái", ImportPrice: 800000, SellingPrice: 1300000, LowStockThreshold: 5},
 
-		// Thực phẩm (SUP001)
-		{ProductCode: "TP001", ProductName: "Gạo ST25 5kg", CategoryID: categoryMap["Thực phẩm"], SupplierID: supplierMap["SUP001"], Unit: "Bao", ImportPrice: 120000, SellingPrice: 180000, ShelfLifeDays: intPtr(180), LowStockThreshold: 10},
-		{ProductCode: "TP002", ProductName: "Mì gói Hảo Hảo", CategoryID: categoryMap["Thực phẩm"], SupplierID: supplierMap["SUP001"], Unit: "Thùng", ImportPrice: 85000, SellingPrice: 115000, ShelfLifeDays: intPtr(180), LowStockThreshold: 20},
-		{ProductCode: "TP003", ProductName: "Dầu ăn Tường An 1L", CategoryID: categoryMap["Thực phẩm"], SupplierID: supplierMap["SUP001"], Unit: "Chai", ImportPrice: 35000, SellingPrice: 52000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		// Đồ bếp (10 sản phẩm) - SUP004
+		{ProductCode: "DB001", ProductName: "Nồi cơm điện 1.8L", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 380000, SellingPrice: 650000, LowStockThreshold: 5},
+		{ProductCode: "DB002", ProductName: "Máy xay sinh tố", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 250000, SellingPrice: 420000, LowStockThreshold: 8},
+		{ProductCode: "DB003", ProductName: "Ấm đun nước siêu tốc", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 180000, SellingPrice: 300000, LowStockThreshold: 10},
+		{ProductCode: "DB004", ProductName: "Bếp gas hồng ngoại", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 450000, SellingPrice: 750000, LowStockThreshold: 6},
+		{ProductCode: "DB005", ProductName: "Lò vi sóng 20L", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 1200000, SellingPrice: 1950000, LowStockThreshold: 3},
+		{ProductCode: "DB006", ProductName: "Máy pha cà phê", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 650000, SellingPrice: 1100000, LowStockThreshold: 4},
+		{ProductCode: "DB007", ProductName: "Nồi áp suất 5L", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 320000, SellingPrice: 520000, LowStockThreshold: 6},
+		{ProductCode: "DB008", ProductName: "Máy nướng bánh mì", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 280000, SellingPrice: 450000, LowStockThreshold: 8},
+		{ProductCode: "DB009", ProductName: "Bộ dao thớt inox", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Bộ", ImportPrice: 95000, SellingPrice: 160000, LowStockThreshold: 12},
+		{ProductCode: "DB010", ProductName: "Máy đánh trứng cầm tay", CategoryID: categoryMap["Đồ bếp"], SupplierID: supplierMap["SUP004"], Unit: "Cái", ImportPrice: 85000, SellingPrice: 140000, LowStockThreshold: 10},
 
-		// Đồ uống (SUP005)
-		{ProductCode: "DU001", ProductName: "Nước suối Aquafina 500ml", CategoryID: categoryMap["Đồ uống"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 80000, SellingPrice: 120000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
-		{ProductCode: "DU002", ProductName: "Trà xanh không độ", CategoryID: categoryMap["Đồ uống"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 140000, SellingPrice: 200000, ShelfLifeDays: intPtr(180), LowStockThreshold: 10},
-		{ProductCode: "DU003", ProductName: "Coca Cola 330ml", CategoryID: categoryMap["Đồ uống"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 180000, SellingPrice: 260000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
+		// Thực phẩm - Đồ khô (8 sản phẩm) - SUP001
+		{ProductCode: "TP001", ProductName: "Gạo ST25 5kg", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Bao", ImportPrice: 120000, SellingPrice: 180000, ShelfLifeDays: intPtr(180), LowStockThreshold: 10},
+		{ProductCode: "TP002", ProductName: "Mì gói Hảo Hảo", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Thùng", ImportPrice: 85000, SellingPrice: 115000, ShelfLifeDays: intPtr(180), LowStockThreshold: 20},
+		{ProductCode: "TP003", ProductName: "Dầu ăn Tường An 1L", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Chai", ImportPrice: 35000, SellingPrice: 52000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		{ProductCode: "TP004", ProductName: "Muối I-ốt 500g", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 8000, SellingPrice: 12000, ShelfLifeDays: intPtr(730), LowStockThreshold: 25},
+		{ProductCode: "TP005", ProductName: "Đường cát trắng 1kg", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 18000, SellingPrice: 25000, ShelfLifeDays: intPtr(365), LowStockThreshold: 20},
+		{ProductCode: "TP006", ProductName: "Nước mắm Phú Quốc", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Chai", ImportPrice: 45000, SellingPrice: 70000, ShelfLifeDays: intPtr(730), LowStockThreshold: 15},
+		{ProductCode: "TP007", ProductName: "Bột mì đa dụng 1kg", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 22000, SellingPrice: 35000, ShelfLifeDays: intPtr(365), LowStockThreshold: 18},
+		{ProductCode: "TP008", ProductName: "Bánh quy Oreo", CategoryID: categoryMap["Thực phẩm - Đồ khô"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 15000, SellingPrice: 25000, ShelfLifeDays: intPtr(120), LowStockThreshold: 25},
+
+		// Thực phẩm - Rau quả (5 sản phẩm) - SUP001
+		{ProductCode: "TP009", ProductName: "Cà rốt 1kg", CategoryID: categoryMap["Thực phẩm - Rau quả"], SupplierID: supplierMap["SUP001"], Unit: "Kg", ImportPrice: 15000, SellingPrice: 25000, ShelfLifeDays: intPtr(7), LowStockThreshold: 20},
+		{ProductCode: "TP010", ProductName: "Khoai tây 1kg", CategoryID: categoryMap["Thực phẩm - Rau quả"], SupplierID: supplierMap["SUP001"], Unit: "Kg", ImportPrice: 18000, SellingPrice: 28000, ShelfLifeDays: intPtr(10), LowStockThreshold: 15},
+		{ProductCode: "TP011", ProductName: "Bắp cải 1kg", CategoryID: categoryMap["Thực phẩm - Rau quả"], SupplierID: supplierMap["SUP001"], Unit: "Kg", ImportPrice: 12000, SellingPrice: 20000, ShelfLifeDays: intPtr(5), LowStockThreshold: 25},
+		{ProductCode: "TP012", ProductName: "Táo Fuji 1kg", CategoryID: categoryMap["Thực phẩm - Rau quả"], SupplierID: supplierMap["SUP001"], Unit: "Kg", ImportPrice: 35000, SellingPrice: 55000, ShelfLifeDays: intPtr(14), LowStockThreshold: 12},
+		{ProductCode: "TP013", ProductName: "Chuối tiêu 1kg", CategoryID: categoryMap["Thực phẩm - Rau quả"], SupplierID: supplierMap["SUP001"], Unit: "Kg", ImportPrice: 25000, SellingPrice: 40000, ShelfLifeDays: intPtr(3), LowStockThreshold: 18},
+
+		// Thực phẩm - Thịt cá (4 sản phẩm) - SUP001
+		{ProductCode: "TP014", ProductName: "Thịt heo ba chỉ 500g", CategoryID: categoryMap["Thực phẩm - Thịt cá"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 65000, SellingPrice: 95000, ShelfLifeDays: intPtr(5), LowStockThreshold: 15},
+		{ProductCode: "TP015", ProductName: "Cá thu đông lạnh", CategoryID: categoryMap["Thực phẩm - Thịt cá"], SupplierID: supplierMap["SUP001"], Unit: "Con", ImportPrice: 85000, SellingPrice: 120000, ShelfLifeDays: intPtr(90), LowStockThreshold: 12},
+		{ProductCode: "TP016", ProductName: "Tôm đông lạnh 500g", CategoryID: categoryMap["Thực phẩm - Thịt cá"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 120000, SellingPrice: 180000, ShelfLifeDays: intPtr(90), LowStockThreshold: 10},
+		{ProductCode: "TP017", ProductName: "Xúc xích Đức Việt", CategoryID: categoryMap["Thực phẩm - Thịt cá"], SupplierID: supplierMap["SUP001"], Unit: "Gói", ImportPrice: 55000, SellingPrice: 85000, ShelfLifeDays: intPtr(60), LowStockThreshold: 20},
+
+		// Thực phẩm - Sữa trứng (3 sản phẩm) - SUP001
+		{ProductCode: "TP018", ProductName: "Trứng gà hộp 10 quả", CategoryID: categoryMap["Thực phẩm - Sữa trứng"], SupplierID: supplierMap["SUP001"], Unit: "Hộp", ImportPrice: 30000, SellingPrice: 45000, ShelfLifeDays: intPtr(30), LowStockThreshold: 30},
+		{ProductCode: "TP019", ProductName: "Sữa tươi Vinamilk 1L", CategoryID: categoryMap["Thực phẩm - Sữa trứng"], SupplierID: supplierMap["SUP001"], Unit: "Hộp", ImportPrice: 28000, SellingPrice: 42000, ShelfLifeDays: intPtr(7), LowStockThreshold: 30},
+		{ProductCode: "TP020", ProductName: "Phô mai lát Laughing Cow", CategoryID: categoryMap["Thực phẩm - Sữa trứng"], SupplierID: supplierMap["SUP001"], Unit: "Hộp", ImportPrice: 35000, SellingPrice: 55000, ShelfLifeDays: intPtr(60), LowStockThreshold: 18},
+
+		// Đồ uống - Có cồn (3 sản phẩm) - SUP005
+		{ProductCode: "DU001", ProductName: "Bia Saigon lon 330ml", CategoryID: categoryMap["Đồ uống - Có cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 220000, SellingPrice: 320000, ShelfLifeDays: intPtr(365), LowStockThreshold: 10},
+		{ProductCode: "DU002", ProductName: "Bia Heineken lon 330ml", CategoryID: categoryMap["Đồ uống - Có cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 280000, SellingPrice: 420000, ShelfLifeDays: intPtr(365), LowStockThreshold: 8},
+		{ProductCode: "DU003", ProductName: "Rượu vang Đà Lạt", CategoryID: categoryMap["Đồ uống - Có cồn"], SupplierID: supplierMap["SUP005"], Unit: "Chai", ImportPrice: 120000, SellingPrice: 180000, ShelfLifeDays: intPtr(730), LowStockThreshold: 15},
+
+		// Đồ uống - Không cồn (8 sản phẩm) - SUP005
+		{ProductCode: "DU004", ProductName: "Nước suối Aquafina 500ml", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 80000, SellingPrice: 120000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		{ProductCode: "DU005", ProductName: "Coca Cola 330ml", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 180000, SellingPrice: 260000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
+		{ProductCode: "DU006", ProductName: "Pepsi lon 330ml", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 175000, SellingPrice: 250000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
+		{ProductCode: "DU007", ProductName: "Nước cam Tropicana", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 200000, SellingPrice: 290000, ShelfLifeDays: intPtr(180), LowStockThreshold: 8},
+		{ProductCode: "DU008", ProductName: "Nước dừa Cocoxim", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 180000, SellingPrice: 260000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
+		{ProductCode: "DU009", ProductName: "Nước tăng lực RedBull", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 280000, SellingPrice: 400000, ShelfLifeDays: intPtr(365), LowStockThreshold: 8},
+		{ProductCode: "DU010", ProductName: "Sữa chua uống TH", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 120000, SellingPrice: 180000, ShelfLifeDays: intPtr(15), LowStockThreshold: 18},
+		{ProductCode: "DU011", ProductName: "Nước khoáng LaVie", CategoryID: categoryMap["Đồ uống - Không cồn"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 90000, SellingPrice: 135000, ShelfLifeDays: intPtr(365), LowStockThreshold: 16},
+
+		// Đồ uống - Nóng (4 sản phẩm) - SUP005
+		{ProductCode: "DU012", ProductName: "Cà phê Nescafe Gold", CategoryID: categoryMap["Đồ uống - Nóng"], SupplierID: supplierMap["SUP005"], Unit: "Lọ", ImportPrice: 85000, SellingPrice: 130000, ShelfLifeDays: intPtr(730), LowStockThreshold: 20},
+		{ProductCode: "DU013", ProductName: "Trà xanh không độ", CategoryID: categoryMap["Đồ uống - Nóng"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 140000, SellingPrice: 200000, ShelfLifeDays: intPtr(180), LowStockThreshold: 10},
+		{ProductCode: "DU014", ProductName: "Trà đá Lipton chai", CategoryID: categoryMap["Đồ uống - Nóng"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 150000, SellingPrice: 220000, ShelfLifeDays: intPtr(180), LowStockThreshold: 14},
+		{ProductCode: "DU015", ProductName: "Trà sữa Lipton", CategoryID: categoryMap["Đồ uống - Nóng"], SupplierID: supplierMap["SUP005"], Unit: "Thùng", ImportPrice: 160000, SellingPrice: 230000, ShelfLifeDays: intPtr(180), LowStockThreshold: 15},
+
+		// Mỹ phẩm - Chăm sóc da (4 sản phẩm) - SUP001, SUP002
+		{ProductCode: "MP001", ProductName: "Kem chống nắng Nivea", CategoryID: categoryMap["Mỹ phẩm - Chăm sóc da"], SupplierID: supplierMap["SUP001"], Unit: "Tuýp", ImportPrice: 65000, SellingPrice: 110000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		{ProductCode: "MP002", ProductName: "Sữa rửa mặt Cetaphil", CategoryID: categoryMap["Mỹ phẩm - Chăm sóc da"], SupplierID: supplierMap["SUP001"], Unit: "Chai", ImportPrice: 180000, SellingPrice: 280000, ShelfLifeDays: intPtr(365), LowStockThreshold: 10},
+		{ProductCode: "MP003", ProductName: "Nước hoa hồng Mamonde", CategoryID: categoryMap["Mỹ phẩm - Chăm sóc da"], SupplierID: supplierMap["SUP002"], Unit: "Chai", ImportPrice: 120000, SellingPrice: 190000, ShelfLifeDays: intPtr(365), LowStockThreshold: 8},
+		{ProductCode: "MP004", ProductName: "Kem dưỡng da Olay", CategoryID: categoryMap["Mỹ phẩm - Chăm sóc da"], SupplierID: supplierMap["SUP002"], Unit: "Lọ", ImportPrice: 150000, SellingPrice: 240000, ShelfLifeDays: intPtr(365), LowStockThreshold: 10},
+
+		// Mỹ phẩm - Trang điểm (3 sản phẩm) - SUP002, SUP003
+		{ProductCode: "MP005", ProductName: "Son dưỡng môi Vaseline", CategoryID: categoryMap["Mỹ phẩm - Trang điểm"], SupplierID: supplierMap["SUP002"], Unit: "Cây", ImportPrice: 35000, SellingPrice: 60000, ShelfLifeDays: intPtr(365), LowStockThreshold: 18},
+		{ProductCode: "MP006", ProductName: "Mascara Maybelline", CategoryID: categoryMap["Mỹ phẩm - Trang điểm"], SupplierID: supplierMap["SUP002"], Unit: "Cây", ImportPrice: 180000, SellingPrice: 290000, ShelfLifeDays: intPtr(365), LowStockThreshold: 8},
+		{ProductCode: "MP007", ProductName: "Phấn phủ L'Oreal", CategoryID: categoryMap["Mỹ phẩm - Trang điểm"], SupplierID: supplierMap["SUP003"], Unit: "Hộp", ImportPrice: 250000, SellingPrice: 400000, ShelfLifeDays: intPtr(365), LowStockThreshold: 6},
+
+		// Mỹ phẩm - Vệ sinh cá nhân (3 sản phẩm) - SUP001, SUP003
+		{ProductCode: "MP008", ProductName: "Dầu gội Head & Shoulders", CategoryID: categoryMap["Mỹ phẩm - Vệ sinh cá nhân"], SupplierID: supplierMap["SUP001"], Unit: "Chai", ImportPrice: 85000, SellingPrice: 130000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
+		{ProductCode: "MP009", ProductName: "Kem đánh răng Colgate", CategoryID: categoryMap["Mỹ phẩm - Vệ sinh cá nhân"], SupplierID: supplierMap["SUP001"], Unit: "Tuýp", ImportPrice: 25000, SellingPrice: 40000, ShelfLifeDays: intPtr(730), LowStockThreshold: 20},
+		{ProductCode: "MP010", ProductName: "Xịt khử mùi Rexona", CategoryID: categoryMap["Mỹ phẩm - Vệ sinh cá nhân"], SupplierID: supplierMap["SUP003"], Unit: "Chai", ImportPrice: 55000, SellingPrice: 90000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+
+		// Thời trang - Nam (2 sản phẩm) - SUP003
+		{ProductCode: "TT001", ProductName: "Quần jean nam", CategoryID: categoryMap["Thời trang - Nam"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 200000, SellingPrice: 350000, ShelfLifeDays: intPtr(365), LowStockThreshold: 10},
+		{ProductCode: "TT002", ProductName: "Áo polo nam", CategoryID: categoryMap["Thời trang - Nam"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 120000, SellingPrice: 200000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+
+		// Thời trang - Nữ (2 sản phẩm) - SUP003
+		{ProductCode: "TT003", ProductName: "Váy maxi nữ", CategoryID: categoryMap["Thời trang - Nữ"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 180000, SellingPrice: 320000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
+		{ProductCode: "TT004", ProductName: "Túi xách nữ", CategoryID: categoryMap["Thời trang - Nữ"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 120000, SellingPrice: 220000, ShelfLifeDays: intPtr(365), LowStockThreshold: 8},
+
+		// Thời trang - Unisex (3 sản phẩm) - SUP003
+		{ProductCode: "TT005", ProductName: "Áo thun cotton unisex", CategoryID: categoryMap["Thời trang - Unisex"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 80000, SellingPrice: 150000, ShelfLifeDays: intPtr(365), LowStockThreshold: 20},
+		{ProductCode: "TT006", ProductName: "Dép tông nam nữ", CategoryID: categoryMap["Thời trang - Unisex"], SupplierID: supplierMap["SUP003"], Unit: "Đôi", ImportPrice: 45000, SellingPrice: 80000, ShelfLifeDays: intPtr(365), LowStockThreshold: 15},
+		{ProductCode: "TT007", ProductName: "Đồng hồ đeo tay", CategoryID: categoryMap["Thời trang - Unisex"], SupplierID: supplierMap["SUP003"], Unit: "Cái", ImportPrice: 150000, SellingPrice: 280000, ShelfLifeDays: intPtr(365), LowStockThreshold: 12},
 	}
 
 	if err := tx.Create(&products).Error; err != nil {
@@ -393,9 +519,11 @@ func seedDisplayShelves(tx *gorm.DB, categoryMap map[string]uint) (map[string]ui
 		{ShelfCode: "SH001", ShelfName: "Quầy văn phòng phẩm 1", CategoryID: categoryMap["Văn phòng phẩm"], Location: strPtr("Khu A - Tầng 1"), MaxCapacity: intPtr(500)},
 		{ShelfCode: "SH002", ShelfName: "Quầy đồ gia dụng 1", CategoryID: categoryMap["Đồ gia dụng"], Location: strPtr("Khu B - Tầng 1"), MaxCapacity: intPtr(200)},
 		{ShelfCode: "SH003", ShelfName: "Quầy điện tử 1", CategoryID: categoryMap["Đồ điện tử"], Location: strPtr("Khu C - Tầng 1"), MaxCapacity: intPtr(300)},
-		{ShelfCode: "SH004", ShelfName: "Quầy thực phẩm khô", CategoryID: categoryMap["Thực phẩm"], Location: strPtr("Khu D - Tầng 1"), MaxCapacity: intPtr(800)},
-		{ShelfCode: "SH005", ShelfName: "Quầy đồ uống", CategoryID: categoryMap["Đồ uống"], Location: strPtr("Khu E - Tầng 1"), MaxCapacity: intPtr(600)},
+		{ShelfCode: "SH004", ShelfName: "Quầy thực phẩm khô", CategoryID: categoryMap["Thực phẩm - Đồ khô"], Location: strPtr("Khu D - Tầng 1"), MaxCapacity: intPtr(800)},
+		{ShelfCode: "SH005", ShelfName: "Quầy đồ uống không cồn", CategoryID: categoryMap["Đồ uống - Không cồn"], Location: strPtr("Khu E - Tầng 1"), MaxCapacity: intPtr(600)},
 		{ShelfCode: "SH006", ShelfName: "Quầy văn phòng phẩm 2", CategoryID: categoryMap["Văn phòng phẩm"], Location: strPtr("Khu A - Tầng 2"), MaxCapacity: intPtr(400)},
+		{ShelfCode: "SH007", ShelfName: "Quầy rau quả tươi", CategoryID: categoryMap["Thực phẩm - Rau quả"], Location: strPtr("Khu F - Tầng 1"), MaxCapacity: intPtr(300)},
+		{ShelfCode: "SH008", ShelfName: "Quầy mỹ phẩm", CategoryID: categoryMap["Mỹ phẩm - Chăm sóc da"], Location: strPtr("Khu G - Tầng 1"), MaxCapacity: intPtr(250)},
 	}
 
 	if err := tx.Create(&shelves).Error; err != nil {
@@ -413,10 +541,31 @@ func seedDisplayShelves(tx *gorm.DB, categoryMap map[string]uint) (map[string]ui
 
 func seedDiscountRules(tx *gorm.DB, categoryMap map[string]uint) error {
 	rules := []models.DiscountRule{
-		{CategoryID: categoryMap["Thực phẩm"], DaysBeforeExpiry: 7, DiscountPercentage: 30, RuleName: strPtr("Thực phẩm - giảm 30%")},
-		{CategoryID: categoryMap["Thực phẩm"], DaysBeforeExpiry: 3, DiscountPercentage: 50, RuleName: strPtr("Thực phẩm - giảm 50%")},
-		{CategoryID: categoryMap["Đồ uống"], DaysBeforeExpiry: 10, DiscountPercentage: 20, RuleName: strPtr("Đồ uống - giảm 20%")},
-		{CategoryID: categoryMap["Đồ uống"], DaysBeforeExpiry: 5, DiscountPercentage: 40, RuleName: strPtr("Đồ uống - giảm 40%")},
+		// Thực phẩm - Đồ khô (hạn dưới 5 ngày giảm 50%)
+		{CategoryID: categoryMap["Thực phẩm - Đồ khô"], DaysBeforeExpiry: 5, DiscountPercentage: 50, RuleName: strPtr("Thực phẩm đồ khô - giảm 50% khi hạn dưới 5 ngày")},
+		{CategoryID: categoryMap["Thực phẩm - Đồ khô"], DaysBeforeExpiry: 15, DiscountPercentage: 20, RuleName: strPtr("Thực phẩm đồ khô - giảm 20% khi hạn dưới 15 ngày")},
+
+		// Thực phẩm - Rau quả (hạn dưới 1 ngày giảm 50%)
+		{CategoryID: categoryMap["Thực phẩm - Rau quả"], DaysBeforeExpiry: 1, DiscountPercentage: 50, RuleName: strPtr("Rau quả - giảm 50% khi hạn dưới 1 ngày")},
+		{CategoryID: categoryMap["Thực phẩm - Rau quả"], DaysBeforeExpiry: 3, DiscountPercentage: 30, RuleName: strPtr("Rau quả - giảm 30% khi hạn dưới 3 ngày")},
+
+		// Thực phẩm - Thịt cá
+		{CategoryID: categoryMap["Thực phẩm - Thịt cá"], DaysBeforeExpiry: 2, DiscountPercentage: 40, RuleName: strPtr("Thịt cá - giảm 40% khi hạn dưới 2 ngày")},
+		{CategoryID: categoryMap["Thực phẩm - Thịt cá"], DaysBeforeExpiry: 5, DiscountPercentage: 20, RuleName: strPtr("Thịt cá - giảm 20% khi hạn dưới 5 ngày")},
+
+		// Thực phẩm - Sữa trứng
+		{CategoryID: categoryMap["Thực phẩm - Sữa trứng"], DaysBeforeExpiry: 3, DiscountPercentage: 35, RuleName: strPtr("Sữa trứng - giảm 35% khi hạn dưới 3 ngày")},
+		{CategoryID: categoryMap["Thực phẩm - Sữa trứng"], DaysBeforeExpiry: 7, DiscountPercentage: 15, RuleName: strPtr("Sữa trứng - giảm 15% khi hạn dưới 7 ngày")},
+
+		// Đồ uống - Có cồn
+		{CategoryID: categoryMap["Đồ uống - Có cồn"], DaysBeforeExpiry: 30, DiscountPercentage: 25, RuleName: strPtr("Đồ uống có cồn - giảm 25% khi hạn dưới 30 ngày")},
+
+		// Đồ uống - Không cồn
+		{CategoryID: categoryMap["Đồ uống - Không cồn"], DaysBeforeExpiry: 10, DiscountPercentage: 20, RuleName: strPtr("Đồ uống không cồn - giảm 20% khi hạn dưới 10 ngày")},
+		{CategoryID: categoryMap["Đồ uống - Không cồn"], DaysBeforeExpiry: 5, DiscountPercentage: 35, RuleName: strPtr("Đồ uống không cồn - giảm 35% khi hạn dưới 5 ngày")},
+
+		// Đồ uống - Nóng
+		{CategoryID: categoryMap["Đồ uống - Nóng"], DaysBeforeExpiry: 15, DiscountPercentage: 15, RuleName: strPtr("Đồ uống nóng - giảm 15% khi hạn dưới 15 ngày")},
 	}
 
 	if err := tx.Create(&rules).Error; err != nil {
@@ -427,64 +576,84 @@ func seedDiscountRules(tx *gorm.DB, categoryMap map[string]uint) error {
 }
 
 func seedCustomers(tx *gorm.DB, membershipMap map[string]uint) (map[string]uint, error) {
-	regDate, _ := time.Parse("2006-01-02", "2024-01-01")
+	// Generate 200 customers with realistic data
+	firstNames := []string{"Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Phan", "Vũ", "Võ", "Đặng", "Bùi",
+		"Đỗ", "Hồ", "Ngô", "Dương", "Lý", "Mai", "Cao", "Tôn", "Trịnh", "Nông"}
+	middleNames := []string{"Văn", "Thị", "Hoàng", "Minh", "Thúy", "Quốc", "Hữu", "Đức", "Thanh", "Kim",
+		"Thu", "Hải", "Anh", "Bảo", "Công", "Duy", "Gia", "Hà", "Hùng", "Khánh"}
+	lastNames := []string{"Khách", "Mai", "Nam", "Hằng", "Tuấn", "Linh", "Đức", "Hoa", "Long", "Phương",
+		"Quân", "Hương", "Sơn", "Thảo", "Vinh", "Yến", "Bình", "Châu", "Dũng", "Giang",
+		"Hiếu", "Khuê", "Loan", "Minh", "Nga", "Phát", "Quỳnh", "Sáng", "Tâm", "Uyên"}
 
-	customers := []models.Customer{
-		{
-			CustomerCode:      strPtr("CUST001"),
-			FullName:          strPtr("Nguyễn Văn Khách"),
-			Phone:             strPtr("0971234567"),
-			Email:             strPtr("customer1@gmail.com"),
-			MembershipCardNo:  strPtr("MB001"),
-			MembershipLevelID: uintPtr(membershipMap["Bronze"]),
+	var customers []models.Customer
+	baseRegDate, _ := time.Parse("2006-01-02", "2024-01-01")
+
+	// Distribution: 40% Bronze, 30% Silver, 20% Gold, 8% Platinum, 2% Diamond
+	membershipLevels := []string{
+		"Bronze", "Bronze", "Bronze", "Bronze", // 40%
+		"Silver", "Silver", "Silver", // 30%
+		"Gold", "Gold", // 20%
+		"Platinum", // 8%
+		"Diamond",  // 2%
+	}
+
+	for i := 1; i <= 200; i++ {
+		// Random name generation
+		firstName := firstNames[i%len(firstNames)]
+		middleName := middleNames[(i*3)%len(middleNames)]
+		lastName := lastNames[(i*7)%len(lastNames)]
+		fullName := fmt.Sprintf("%s %s %s", firstName, middleName, lastName)
+
+		// Phone number generation (09xx-xxx-xxx)
+		phonePrefix := []string{"090", "091", "092", "093", "094", "095", "096", "097", "098", "099"}
+		phone := fmt.Sprintf("%s%07d", phonePrefix[i%len(phonePrefix)], 1000000+(i*12345)%8999999)
+
+		// Email generation
+		emailPrefix := fmt.Sprintf("customer%03d", i)
+		emailDomains := []string{"gmail.com", "yahoo.com", "hotmail.com", "outlook.com"}
+		email := fmt.Sprintf("%s@%s", emailPrefix, emailDomains[i%len(emailDomains)])
+
+		// Membership level based on distribution
+		levelIndex := (i - 1) % len(membershipLevels)
+		membershipLevel := membershipLevels[levelIndex]
+
+		// Registration date - spread over 8 months
+		regDate := baseRegDate.AddDate(0, (i-1)%8, (i*3)%28)
+
+		// Spending and points based on membership level
+		var totalSpending float64
+		var loyaltyPoints int
+		switch membershipLevel {
+		case "Bronze":
+			totalSpending = float64(500000 + (i*50000)%4500000) // 0.5M - 5M
+			loyaltyPoints = int(totalSpending / 10000)
+		case "Silver":
+			totalSpending = float64(5000000 + (i*100000)%15000000) // 5M - 20M
+			loyaltyPoints = int(totalSpending * 1.2 / 10000)
+		case "Gold":
+			totalSpending = float64(20000000 + (i*500000)%30000000) // 20M - 50M
+			loyaltyPoints = int(totalSpending * 1.5 / 10000)
+		case "Platinum":
+			totalSpending = float64(50000000 + (i*1000000)%50000000) // 50M - 100M
+			loyaltyPoints = int(totalSpending * 2.0 / 10000)
+		case "Diamond":
+			totalSpending = float64(100000000 + (i*2000000)%100000000) // 100M - 200M
+			loyaltyPoints = int(totalSpending * 2.5 / 10000)
+		}
+
+		customer := models.Customer{
+			CustomerCode:      strPtr(fmt.Sprintf("CUST%03d", i)),
+			FullName:          strPtr(fullName),
+			Phone:             strPtr(phone),
+			Email:             strPtr(email),
+			MembershipCardNo:  strPtr(fmt.Sprintf("MB%03d", i)),
+			MembershipLevelID: uintPtr(membershipMap[membershipLevel]),
 			RegistrationDate:  regDate,
-			TotalSpending:     2500000,
-			LoyaltyPoints:     250,
-		},
-		{
-			CustomerCode:      strPtr("CUST002"),
-			FullName:          strPtr("Trần Thị Mai"),
-			Phone:             strPtr("0981234567"),
-			Email:             strPtr("customer2@gmail.com"),
-			MembershipCardNo:  strPtr("MB002"),
-			MembershipLevelID: uintPtr(membershipMap["Silver"]),
-			RegistrationDate:  regDate,
-			TotalSpending:     8000000,
-			LoyaltyPoints:     960,
-		},
-		{
-			CustomerCode:      strPtr("CUST003"),
-			FullName:          strPtr("Lê Hoàng Nam"),
-			Phone:             strPtr("0991234567"),
-			Email:             strPtr("customer3@gmail.com"),
-			MembershipCardNo:  strPtr("MB003"),
-			MembershipLevelID: uintPtr(membershipMap["Gold"]),
-			RegistrationDate:  regDate,
-			TotalSpending:     25000000,
-			LoyaltyPoints:     3750,
-		},
-		{
-			CustomerCode:      strPtr("CUST004"),
-			FullName:          strPtr("Phạm Thúy Hằng"),
-			Phone:             strPtr("0961234567"),
-			Email:             strPtr("customer4@gmail.com"),
-			MembershipCardNo:  strPtr("MB004"),
-			MembershipLevelID: uintPtr(membershipMap["Bronze"]),
-			RegistrationDate:  regDate,
-			TotalSpending:     1500000,
-			LoyaltyPoints:     150,
-		},
-		{
-			CustomerCode:      strPtr("CUST005"),
-			FullName:          strPtr("Hoàng Minh Tuấn"),
-			Phone:             strPtr("0951234567"),
-			Email:             strPtr("customer5@gmail.com"),
-			MembershipCardNo:  strPtr("MB005"),
-			MembershipLevelID: uintPtr(membershipMap["Platinum"]),
-			RegistrationDate:  regDate,
-			TotalSpending:     55000000,
-			LoyaltyPoints:     11000,
-		},
+			TotalSpending:     totalSpending,
+			LoyaltyPoints:     loyaltyPoints,
+		}
+
+		customers = append(customers, customer)
 	}
 
 	if err := tx.Create(&customers).Error; err != nil {
@@ -503,41 +672,9 @@ func seedCustomers(tx *gorm.DB, membershipMap map[string]uint) (map[string]uint,
 }
 
 func seedWarehouseInventory(tx *gorm.DB, warehouseMap map[string]uint, productMap map[string]uint) error {
-	importDate := time.Now().AddDate(0, 0, -30)
-	expiryDate := time.Now().AddDate(0, 6, 0)
-	mainWarehouseID := warehouseMap["WH001"]
-
-	inventory := []models.WarehouseInventory{
-		// Văn phòng phẩm
-		{WarehouseID: mainWarehouseID, ProductID: productMap["VPP001"], BatchCode: "VPP001-2024-01", Quantity: 500, ImportDate: importDate, ImportPrice: 3000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["VPP002"], BatchCode: "VPP002-2024-01", Quantity: 300, ImportDate: importDate, ImportPrice: 8000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["VPP003"], BatchCode: "VPP003-2024-01", Quantity: 400, ImportDate: importDate, ImportPrice: 2000},
-
-		// Đồ gia dụng
-		{WarehouseID: mainWarehouseID, ProductID: productMap["GD001"], BatchCode: "GD001-2024-01", Quantity: 50, ImportDate: importDate, ImportPrice: 150000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["GD002"], BatchCode: "GD002-2024-01", Quantity: 30, ImportDate: importDate, ImportPrice: 350000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["GD003"], BatchCode: "GD003-2024-01", Quantity: 100, ImportDate: importDate, ImportPrice: 45000},
-
-		// Đồ điện tử
-		{WarehouseID: mainWarehouseID, ProductID: productMap["DT001"], BatchCode: "DT001-2024-01", Quantity: 80, ImportDate: importDate, ImportPrice: 200000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["DT002"], BatchCode: "DT002-2024-01", Quantity: 60, ImportDate: importDate, ImportPrice: 180000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["DT003"], BatchCode: "DT003-2024-01", Quantity: 150, ImportDate: importDate, ImportPrice: 25000},
-
-		// Thực phẩm (có hạn sử dụng)
-		{WarehouseID: mainWarehouseID, ProductID: productMap["TP001"], BatchCode: "TP001-2024-01", Quantity: 100, ImportDate: importDate, ExpiryDate: &expiryDate, ImportPrice: 120000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["TP002"], BatchCode: "TP002-2024-01", Quantity: 200, ImportDate: importDate, ExpiryDate: &expiryDate, ImportPrice: 85000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["TP003"], BatchCode: "TP003-2024-01", Quantity: 150, ImportDate: importDate, ImportPrice: 35000},
-
-		// Đồ uống
-		{WarehouseID: mainWarehouseID, ProductID: productMap["DU001"], BatchCode: "DU001-2024-01", Quantity: 150, ImportDate: importDate, ImportPrice: 80000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["DU002"], BatchCode: "DU002-2024-01", Quantity: 100, ImportDate: importDate, ExpiryDate: &expiryDate, ImportPrice: 140000},
-		{WarehouseID: mainWarehouseID, ProductID: productMap["DU003"], BatchCode: "DU003-2024-01", Quantity: 120, ImportDate: importDate, ImportPrice: 180000},
-	}
-
-	if err := tx.Create(&inventory).Error; err != nil {
-		return err
-	}
-	log.Printf("  ✓ Seeded %d warehouse inventory items", len(inventory))
+	// Warehouse inventory is now created by purchase orders
+	// This function can be used for additional manual inventory adjustments if needed
+	log.Printf("  ✓ Warehouse inventory created through purchase orders")
 	return nil
 }
 
@@ -575,38 +712,8 @@ func seedShelfData(tx *gorm.DB, shelfMap map[string]uint, productMap map[string]
 	}
 	log.Printf("  ✓ Seeded %d shelf layouts", len(layouts))
 
-	// Shelf Inventory
-	inventories := []models.ShelfInventory{
-		// Văn phòng phẩm
-		{ShelfID: shelfMap["SH001"], ProductID: productMap["VPP001"], CurrentQuantity: 50},
-		{ShelfID: shelfMap["SH001"], ProductID: productMap["VPP002"], CurrentQuantity: 40},
-		{ShelfID: shelfMap["SH001"], ProductID: productMap["VPP003"], CurrentQuantity: 60},
-
-		// Đồ gia dụng
-		{ShelfID: shelfMap["SH002"], ProductID: productMap["GD001"], CurrentQuantity: 10},
-		{ShelfID: shelfMap["SH002"], ProductID: productMap["GD002"], CurrentQuantity: 8},
-		{ShelfID: shelfMap["SH002"], ProductID: productMap["GD003"], CurrentQuantity: 20},
-
-		// Điện tử
-		{ShelfID: shelfMap["SH003"], ProductID: productMap["DT001"], CurrentQuantity: 15},
-		{ShelfID: shelfMap["SH003"], ProductID: productMap["DT002"], CurrentQuantity: 12},
-		{ShelfID: shelfMap["SH003"], ProductID: productMap["DT003"], CurrentQuantity: 25},
-
-		// Thực phẩm
-		{ShelfID: shelfMap["SH004"], ProductID: productMap["TP001"], CurrentQuantity: 25},
-		{ShelfID: shelfMap["SH004"], ProductID: productMap["TP002"], CurrentQuantity: 50},
-		{ShelfID: shelfMap["SH004"], ProductID: productMap["TP003"], CurrentQuantity: 40},
-
-		// Đồ uống
-		{ShelfID: shelfMap["SH005"], ProductID: productMap["DU001"], CurrentQuantity: 30},
-		{ShelfID: shelfMap["SH005"], ProductID: productMap["DU002"], CurrentQuantity: 25},
-		{ShelfID: shelfMap["SH005"], ProductID: productMap["DU003"], CurrentQuantity: 28},
-	}
-
-	if err := tx.Create(&inventories).Error; err != nil {
-		return err
-	}
-	log.Printf("  ✓ Seeded %d shelf inventory items", len(inventories))
+	// Shelf inventory will be created by stock transfers
+	log.Printf("  ✓ Shelf inventory will be populated through stock transfers")
 	return nil
 }
 
@@ -663,198 +770,918 @@ func seedEmployeeWorkHours(tx *gorm.DB, employeeMap map[string]uint) error {
 	return nil
 }
 
-func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap map[string]uint, productMap map[string]uint) error {
-	// Create purchase orders from August 2025 to replenish stock
-	orderDate1, _ := time.Parse("2006-01-02", "2025-08-10")
-	orderDate2, _ := time.Parse("2006-01-02", "2025-08-20")
-	orderDate3, _ := time.Parse("2006-01-02", "2025-09-01")
-
-	orders := []models.PurchaseOrder{
-		{
-			OrderNo:      "PO-2025-08-001",
-			SupplierID:   supplierMap["SUP003"], // Office supplies
-			EmployeeID:   employeeMap["EMP005"], // Stock manager
-			OrderDate:    orderDate1,
-			DeliveryDate: timePtr(orderDate1.AddDate(0, 0, 3)),
-			TotalAmount:  2500000,
-			Status:       models.OrderReceived,
-			Notes:        strPtr("Đơn nhập văn phòng phẩm tháng 8"),
-		},
-		{
-			OrderNo:      "PO-2025-08-002",
-			SupplierID:   supplierMap["SUP001"], // Food supplier
-			EmployeeID:   employeeMap["EMP005"], // Stock manager
-			OrderDate:    orderDate2,
-			DeliveryDate: timePtr(orderDate2.AddDate(0, 0, 2)),
-			TotalAmount:  5800000,
-			Status:       models.OrderReceived,
-			Notes:        strPtr("Đơn nhập thực phẩm định kỳ"),
-		},
-		{
-			OrderNo:      "PO-2025-09-001",
-			SupplierID:   supplierMap["SUP005"], // Beverage supplier
-			EmployeeID:   employeeMap["EMP005"], // Stock manager
-			OrderDate:    orderDate3,
-			DeliveryDate: timePtr(orderDate3.AddDate(0, 0, 2)),
-			TotalAmount:  3600000,
-			Status:       models.OrderReceived,
-			Notes:        strPtr("Đơn nhập đồ uống tháng 9"),
-		},
+func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap map[string]uint, productMap map[string]uint, warehouseMap map[string]uint) error {
+	// Get all products with their details for better planning
+	var products []models.Product
+	tx.Find(&products)
+	productDetailMap := make(map[uint]models.Product)
+	for _, p := range products {
+		productDetailMap[p.ProductID] = p
 	}
 
-	if err := tx.Create(&orders).Error; err != nil {
+	// Main warehouse for receiving goods
+	mainWarehouseID := warehouseMap["WH001"]
+
+	// Initial stock order - before store opening (Aug 10, 2025)
+	initialDate, _ := time.Parse("2006-01-02", "2025-08-10")
+
+	// Create purchase orders with realistic quantities based on product types
+	orders := []models.PurchaseOrder{}
+	orderDetails := []models.PurchaseOrderDetail{}
+	warehouseInventory := []models.WarehouseInventory{}
+
+	// Order 1: Initial stock for Office Supplies (Aug 10)
+	order1 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-001",
+		SupplierID:   supplierMap["SUP003"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    initialDate,
+		DeliveryDate: timePtr(initialDate.AddDate(0, 0, 2)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Initial stock - Office supplies"),
+	}
+	if err := tx.Create(&order1).Error; err != nil {
 		return err
 	}
+
+	// Add details for office supplies
+	officeProducts := []string{"VPP001", "VPP002", "VPP003", "VPP004", "VPP005"}
+	totalAmount := 0.0
+	for _, code := range officeProducts {
+		prodID := productMap[code]
+		product := productDetailMap[prodID]
+		quantity := 500                         // Initial high stock
+		unitPrice := product.SellingPrice * 0.6 // Import at 60% of selling price
+		subtotal := float64(quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order1.OrderID,
+			ProductID: prodID,
+			Quantity:  quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		// Create warehouse inventory entry
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-01", code),
+			Quantity:    quantity,
+			ImportDate:  *order1.DeliveryDate,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order1).Update("total_amount", totalAmount)
+	orders = append(orders, order1)
+
+	// Order 2: Initial stock for Home Goods (Aug 11)
+	order2 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-002",
+		SupplierID:   supplierMap["SUP004"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    initialDate.AddDate(0, 0, 1),
+		DeliveryDate: timePtr(initialDate.AddDate(0, 0, 3)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Initial stock - Home goods & Kitchen"),
+	}
+	if err := tx.Create(&order2).Error; err != nil {
+		return err
+	}
+
+	// Add details for home goods
+	homeProducts := []string{"GD001", "GD002", "GD003", "DB001", "DB002"}
+	totalAmount = 0.0
+	for _, code := range homeProducts {
+		prodID := productMap[code]
+		product := productDetailMap[prodID]
+		quantity := 100 // Lower quantity for expensive items
+		if product.SellingPrice > 500000 {
+			quantity = 50
+		}
+		unitPrice := product.SellingPrice * 0.6
+		subtotal := float64(quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order2.OrderID,
+			ProductID: prodID,
+			Quantity:  quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-02", code),
+			Quantity:    quantity,
+			ImportDate:  *order2.DeliveryDate,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order2).Update("total_amount", totalAmount)
+	orders = append(orders, order2)
+
+	// Order 3: Initial stock for Electronics (Aug 12)
+	order3 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-003",
+		SupplierID:   supplierMap["SUP002"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    initialDate.AddDate(0, 0, 2),
+		DeliveryDate: timePtr(initialDate.AddDate(0, 0, 4)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Initial stock - Electronics"),
+	}
+	if err := tx.Create(&order3).Error; err != nil {
+		return err
+	}
+
+	// Add electronics
+	electronicsProducts := []string{"DT001", "DT002", "DT003", "DT004", "DT005"}
+	totalAmount = 0.0
+	for _, code := range electronicsProducts {
+		prodID := productMap[code]
+		product := productDetailMap[prodID]
+		quantity := 200
+		if product.SellingPrice > 300000 {
+			quantity = 100
+		}
+		unitPrice := product.SellingPrice * 0.7 // Electronics have lower margin
+		subtotal := float64(quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order3.OrderID,
+			ProductID: prodID,
+			Quantity:  quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-03", code),
+			Quantity:    quantity,
+			ImportDate:  *order3.DeliveryDate,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order3).Update("total_amount", totalAmount)
+	orders = append(orders, order3)
+
+	// Order 4: Initial stock for Food & Beverages (Aug 13)
+	order4 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-004",
+		SupplierID:   supplierMap["SUP001"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    initialDate.AddDate(0, 0, 3),
+		DeliveryDate: timePtr(initialDate.AddDate(0, 0, 4)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Initial stock - Food products"),
+	}
+	if err := tx.Create(&order4).Error; err != nil {
+		return err
+	}
+
+	// Add food products with expiry dates
+	foodProducts := []string{"TP001", "TP002", "TP003", "TP004", "TP005"}
+	totalAmount = 0.0
+	expiryDate := initialDate.AddDate(0, 6, 0) // 6 months expiry
+	for _, code := range foodProducts {
+		prodID := productMap[code]
+		product := productDetailMap[prodID]
+		quantity := 200                         // Food products need regular restocking
+		unitPrice := product.SellingPrice * 0.5 // Higher margin for food
+		subtotal := float64(quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order4.OrderID,
+			ProductID: prodID,
+			Quantity:  quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-04", code),
+			Quantity:    quantity,
+			ImportDate:  *order4.DeliveryDate,
+			ExpiryDate:  &expiryDate,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order4).Update("total_amount", totalAmount)
+	orders = append(orders, order4)
+
+	// Order 5: Beverages (Aug 13)
+	order5 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-005",
+		SupplierID:   supplierMap["SUP005"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    initialDate.AddDate(0, 0, 3),
+		DeliveryDate: timePtr(initialDate.AddDate(0, 0, 4)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Initial stock - Beverages"),
+	}
+	if err := tx.Create(&order5).Error; err != nil {
+		return err
+	}
+
+	// Add beverages
+	beverageProducts := []string{"DU001", "DU002", "DU003", "DU004", "DU005"}
+	totalAmount = 0.0
+	for _, code := range beverageProducts {
+		prodID := productMap[code]
+		product := productDetailMap[prodID]
+		quantity := 300 // High demand for beverages
+		unitPrice := product.SellingPrice * 0.55
+		subtotal := float64(quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order5.OrderID,
+			ProductID: prodID,
+			Quantity:  quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		var expiry *time.Time
+		if strings.Contains(product.ProductName, "milk") || strings.Contains(product.ProductName, "juice") {
+			e := initialDate.AddDate(0, 3, 0) // 3 months for perishables
+			expiry = &e
+		}
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-05", code),
+			Quantity:    quantity,
+			ImportDate:  *order5.DeliveryDate,
+			ExpiryDate:  expiry,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order5).Update("total_amount", totalAmount)
+	orders = append(orders, order5)
+
+	// Restock orders based on sales patterns (weekly restocks)
+	// Week 1 restock - Aug 22
+	restockDate1 := initialDate.AddDate(0, 0, 12)
+	order6 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-006",
+		SupplierID:   supplierMap["SUP001"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    restockDate1,
+		DeliveryDate: timePtr(restockDate1.AddDate(0, 0, 2)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Weekly restock - Fast moving items"),
+	}
+	if err := tx.Create(&order6).Error; err != nil {
+		return err
+	}
+
+	// Restock fast-moving items (food, beverages, office supplies)
+	restockItems := []struct {
+		code     string
+		quantity int
+	}{
+		{"TP001", 100}, {"TP002", 80}, {"DU001", 150}, {"DU002", 100},
+		{"VPP001", 200}, {"VPP002", 150},
+	}
+	totalAmount = 0.0
+	for _, item := range restockItems {
+		prodID := productMap[item.code]
+		product := productDetailMap[prodID]
+		unitPrice := product.SellingPrice * 0.6
+		subtotal := float64(item.quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order6.OrderID,
+			ProductID: prodID,
+			Quantity:  item.quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		var expiry *time.Time
+		if strings.HasPrefix(item.code, "TP") || strings.HasPrefix(item.code, "DU") {
+			e := restockDate1.AddDate(0, 4, 0)
+			expiry = &e
+		}
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-R1", item.code),
+			Quantity:    item.quantity,
+			ImportDate:  *order6.DeliveryDate,
+			ExpiryDate:  expiry,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order6).Update("total_amount", totalAmount)
+	orders = append(orders, order6)
+
+	// Week 2 restock - Aug 29
+	restockDate2 := initialDate.AddDate(0, 0, 19)
+	order7 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-007",
+		SupplierID:   supplierMap["SUP002"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    restockDate2,
+		DeliveryDate: timePtr(restockDate2.AddDate(0, 0, 2)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Weekly restock - Electronics"),
+	}
+	if err := tx.Create(&order7).Error; err != nil {
+		return err
+	}
+
+	// Restock electronics
+	electronicRestock := []struct {
+		code     string
+		quantity int
+	}{
+		{"DT001", 50}, {"DT002", 40}, {"DT003", 100},
+	}
+	totalAmount = 0.0
+	for _, item := range electronicRestock {
+		prodID := productMap[item.code]
+		product := productDetailMap[prodID]
+		unitPrice := product.SellingPrice * 0.7
+		subtotal := float64(item.quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order7.OrderID,
+			ProductID: prodID,
+			Quantity:  item.quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-08-R2", item.code),
+			Quantity:    item.quantity,
+			ImportDate:  *order7.DeliveryDate,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order7).Update("total_amount", totalAmount)
+	orders = append(orders, order7)
+
+	// Week 3 restock - Sep 5
+	restockDate3 := initialDate.AddDate(0, 0, 26)
+	order8 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-09-001",
+		SupplierID:   supplierMap["SUP004"],
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    restockDate3,
+		DeliveryDate: timePtr(restockDate3.AddDate(0, 0, 2)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Monthly restock - Home goods"),
+	}
+	if err := tx.Create(&order8).Error; err != nil {
+		return err
+	}
+
+	// Restock home goods
+	homeRestock := []struct {
+		code     string
+		quantity int
+	}{
+		{"GD001", 30}, {"GD002", 20}, {"DB001", 40},
+	}
+	totalAmount = 0.0
+	for _, item := range homeRestock {
+		prodID := productMap[item.code]
+		product := productDetailMap[prodID]
+		unitPrice := product.SellingPrice * 0.6
+		subtotal := float64(item.quantity) * unitPrice
+		totalAmount += subtotal
+
+		detail := models.PurchaseOrderDetail{
+			OrderID:   order8.OrderID,
+			ProductID: prodID,
+			Quantity:  item.quantity,
+			UnitPrice: unitPrice,
+			Subtotal:  subtotal,
+		}
+		orderDetails = append(orderDetails, detail)
+
+		inventory := models.WarehouseInventory{
+			WarehouseID: mainWarehouseID,
+			ProductID:   prodID,
+			BatchCode:   fmt.Sprintf("%s-2025-09-R1", item.code),
+			Quantity:    item.quantity,
+			ImportDate:  *order8.DeliveryDate,
+			ImportPrice: unitPrice,
+		}
+		warehouseInventory = append(warehouseInventory, inventory)
+	}
+	tx.Model(&order8).Update("total_amount", totalAmount)
+	orders = append(orders, order8)
+
+	// Create all order details
+	if err := tx.Create(&orderDetails).Error; err != nil {
+		return err
+	}
+
+	// Create warehouse inventory entries
+	if err := tx.Create(&warehouseInventory).Error; err != nil {
+		return err
+	}
+
 	log.Printf("  ✓ Seeded %d purchase orders", len(orders))
-
-	// Get the order IDs for the details
-	orderIDs := make([]uint, len(orders))
-	for i, order := range orders {
-		orderIDs[i] = order.OrderID
-	}
-
-	// Seed purchase order details
-	details := []models.PurchaseOrderDetail{
-		// Order 1 - Office supplies
-		{OrderID: orderIDs[0], ProductID: productMap["VPP001"], Quantity: 200, UnitPrice: 3000, Subtotal: 600000},
-		{OrderID: orderIDs[0], ProductID: productMap["VPP002"], Quantity: 150, UnitPrice: 8000, Subtotal: 1200000},
-		{OrderID: orderIDs[0], ProductID: productMap["VPP003"], Quantity: 300, UnitPrice: 2000, Subtotal: 600000},
-
-		// Order 2 - Food
-		{OrderID: orderIDs[1], ProductID: productMap["TP001"], Quantity: 30, UnitPrice: 120000, Subtotal: 3600000},
-		{OrderID: orderIDs[1], ProductID: productMap["TP002"], Quantity: 20, UnitPrice: 85000, Subtotal: 1700000},
-		{OrderID: orderIDs[1], ProductID: productMap["TP003"], Quantity: 15, UnitPrice: 35000, Subtotal: 525000},
-
-		// Order 3 - Beverages
-		{OrderID: orderIDs[2], ProductID: productMap["DU001"], Quantity: 20, UnitPrice: 80000, Subtotal: 1600000},
-		{OrderID: orderIDs[2], ProductID: productMap["DU002"], Quantity: 10, UnitPrice: 140000, Subtotal: 1400000},
-		{OrderID: orderIDs[2], ProductID: productMap["DU003"], Quantity: 10, UnitPrice: 180000, Subtotal: 1800000},
-	}
-
-	if err := tx.Create(&details).Error; err != nil {
-		return err
-	}
-	log.Printf("  ✓ Seeded %d purchase order details", len(details))
+	log.Printf("  ✓ Seeded %d purchase order details", len(orderDetails))
+	log.Printf("  ✓ Created %d warehouse inventory entries", len(warehouseInventory))
 	return nil
 }
 
 func seedStockTransfers(tx *gorm.DB, warehouseMap map[string]uint, shelfMap map[string]uint, productMap map[string]uint, employeeMap map[string]uint) error {
-	// Transfer stock from warehouse to shelves after receiving
-	transferDate1, _ := time.Parse("2006-01-02 15:04:05", "2025-08-13 10:00:00")
-	transferDate2, _ := time.Parse("2006-01-02 15:04:05", "2025-08-22 14:00:00")
-	transferDate3, _ := time.Parse("2006-01-02 15:04:05", "2025-09-03 09:00:00")
+	// Get warehouse inventory to ensure we only transfer what exists
+	var warehouseInventory []models.WarehouseInventory
+	tx.Find(&warehouseInventory)
 
-	transfers := []models.StockTransfer{
-		// Transfer office supplies to shelf
-		{TransferCode: "ST-2025-08-001", ProductID: productMap["VPP001"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH001"], Quantity: 50, TransferDate: transferDate1, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("VPP001-2024-01"), Notes: strPtr("Chuyển hàng ra quầy văn phòng phẩm")},
-		{TransferCode: "ST-2025-08-002", ProductID: productMap["VPP002"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH001"], Quantity: 40, TransferDate: transferDate1, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("VPP002-2024-01")},
-		{TransferCode: "ST-2025-08-003", ProductID: productMap["VPP003"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH001"], Quantity: 60, TransferDate: transferDate1, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("VPP003-2024-01")},
-
-		// Transfer food to shelf
-		{TransferCode: "ST-2025-08-004", ProductID: productMap["TP001"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH004"], Quantity: 25, TransferDate: transferDate2, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("TP001-2024-01"), Notes: strPtr("Chuyển thực phẩm ra quầy")},
-		{TransferCode: "ST-2025-08-005", ProductID: productMap["TP002"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH004"], Quantity: 50, TransferDate: transferDate2, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("TP002-2024-01")},
-		{TransferCode: "ST-2025-08-006", ProductID: productMap["TP003"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH004"], Quantity: 40, TransferDate: transferDate2, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("TP003-2024-01")},
-
-		// Transfer beverages to shelf
-		{TransferCode: "ST-2025-09-001", ProductID: productMap["DU001"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH005"], Quantity: 30, TransferDate: transferDate3, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("DU001-2024-01"), Notes: strPtr("Chuyển đồ uống ra quầy")},
-		{TransferCode: "ST-2025-09-002", ProductID: productMap["DU002"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH005"], Quantity: 25, TransferDate: transferDate3, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("DU002-2024-01")},
-		{TransferCode: "ST-2025-09-003", ProductID: productMap["DU003"], FromWarehouseID: warehouseMap["WH001"], ToShelfID: shelfMap["SH005"], Quantity: 28, TransferDate: transferDate3, EmployeeID: employeeMap["EMP005"], BatchCode: strPtr("DU003-2024-01")},
+	// Create map for easy lookup: productID -> []inventory
+	warehouseStock := make(map[uint][]models.WarehouseInventory)
+	for _, inv := range warehouseInventory {
+		warehouseStock[inv.ProductID] = append(warehouseStock[inv.ProductID], inv)
 	}
 
+	// Get shelf layouts to know which products go to which shelves
+	var shelfLayouts []models.ShelfLayout
+	tx.Find(&shelfLayouts)
+
+	// Create map: productID -> shelfID
+	productShelfMap := make(map[uint]uint)
+	for _, layout := range shelfLayouts {
+		productShelfMap[layout.ProductID] = layout.ShelfID
+	}
+
+	mainWarehouseID := warehouseMap["WH001"]
+	transfers := []models.StockTransfer{}
+	transferNo := 1
+
+	// Initial transfer after receiving first orders (Aug 14, 2025 - day before opening)
+	initialTransferDate, _ := time.Parse("2006-01-02 15:04:05", "2025-08-14 10:00:00")
+
+	// Transfer initial stock to shelves for store opening
+	initialTransfers := []struct {
+		productCode string
+		quantity    int
+		notes       string
+	}{
+		// Office supplies
+		{"VPP001", 100, "Initial shelf stock - Pens"},
+		{"VPP002", 80, "Initial shelf stock - Notebooks"},
+		{"VPP003", 120, "Initial shelf stock - Paper"},
+
+		// Home goods
+		{"GD001", 20, "Initial shelf stock - Electric Kettle"},
+		{"GD002", 15, "Initial shelf stock - Rice Cooker"},
+		{"GD003", 40, "Initial shelf stock - Hangers"},
+
+		// Electronics
+		{"DT001", 30, "Initial shelf stock - Headphones"},
+		{"DT002", 25, "Initial shelf stock - Mouse"},
+		{"DT003", 50, "Initial shelf stock - USB Cable"},
+
+		// Food
+		{"TP001", 50, "Initial shelf stock - Cooking Oil"},
+		{"TP002", 100, "Initial shelf stock - Rice"},
+		{"TP003", 80, "Initial shelf stock - Fish Sauce"},
+
+		// Beverages
+		{"DU001", 60, "Initial shelf stock - Coffee"},
+		{"DU002", 50, "Initial shelf stock - Fresh Milk"},
+		{"DU003", 55, "Initial shelf stock - Beer"},
+	}
+
+	for _, item := range initialTransfers {
+		productID := productMap[item.productCode]
+		shelfID, exists := productShelfMap[productID]
+		if !exists {
+			continue // Skip if no shelf layout for this product
+		}
+
+		// Check if we have inventory for this product
+		if invs, ok := warehouseStock[productID]; ok && len(invs) > 0 {
+			// Use the first available batch
+			batchCode := invs[0].BatchCode
+
+			transfer := models.StockTransfer{
+				TransferCode:    fmt.Sprintf("ST-2025-08-%03d", transferNo),
+				ProductID:       productID,
+				FromWarehouseID: mainWarehouseID,
+				ToShelfID:       shelfID,
+				Quantity:        item.quantity,
+				TransferDate:    initialTransferDate,
+				EmployeeID:      employeeMap["EMP005"],
+				BatchCode:       strPtr(batchCode),
+				Notes:           strPtr(item.notes),
+			}
+			transfers = append(transfers, transfer)
+			transferNo++
+
+			// Update warehouse inventory (decrease)
+			tx.Model(&models.WarehouseInventory{}).
+				Where("warehouse_id = ? AND product_id = ? AND batch_code = ?", mainWarehouseID, productID, batchCode).
+				Update("quantity", gorm.Expr("quantity - ?", item.quantity))
+		}
+	}
+
+	// Weekly restocking transfers based on sales patterns
+	// Week 1 restock (Aug 22)
+	week1Date, _ := time.Parse("2006-01-02 15:04:05", "2025-08-22 14:00:00")
+	week1Restocks := []struct {
+		productCode string
+		quantity    int
+	}{
+		{"VPP001", 50}, {"VPP002", 40}, {"TP001", 30}, {"TP002", 50}, {"DU001", 40},
+	}
+
+	for _, item := range week1Restocks {
+		productID := productMap[item.productCode]
+		shelfID, exists := productShelfMap[productID]
+		if !exists {
+			continue
+		}
+
+		if invs, ok := warehouseStock[productID]; ok && len(invs) > 0 {
+			batchCode := invs[len(invs)-1].BatchCode // Use latest batch
+
+			transfer := models.StockTransfer{
+				TransferCode:    fmt.Sprintf("ST-2025-08-%03d", transferNo),
+				ProductID:       productID,
+				FromWarehouseID: mainWarehouseID,
+				ToShelfID:       shelfID,
+				Quantity:        item.quantity,
+				TransferDate:    week1Date,
+				EmployeeID:      employeeMap["EMP005"],
+				BatchCode:       strPtr(batchCode),
+				Notes:           strPtr("Weekly restock"),
+			}
+			transfers = append(transfers, transfer)
+			transferNo++
+
+			tx.Model(&models.WarehouseInventory{}).
+				Where("warehouse_id = ? AND product_id = ? AND batch_code = ?", mainWarehouseID, productID, batchCode).
+				Update("quantity", gorm.Expr("quantity - ?", item.quantity))
+		}
+	}
+
+	// Week 2 restock (Aug 29)
+	week2Date, _ := time.Parse("2006-01-02 15:04:05", "2025-08-29 09:00:00")
+	week2Restocks := []struct {
+		productCode string
+		quantity    int
+	}{
+		{"DT001", 20}, {"DT002", 15}, {"DT003", 30}, {"GD001", 10}, {"GD002", 8},
+	}
+
+	for _, item := range week2Restocks {
+		productID := productMap[item.productCode]
+		shelfID, exists := productShelfMap[productID]
+		if !exists {
+			continue
+		}
+
+		if invs, ok := warehouseStock[productID]; ok && len(invs) > 0 {
+			batchCode := invs[len(invs)-1].BatchCode
+
+			transfer := models.StockTransfer{
+				TransferCode:    fmt.Sprintf("ST-2025-08-%03d", transferNo),
+				ProductID:       productID,
+				FromWarehouseID: mainWarehouseID,
+				ToShelfID:       shelfID,
+				Quantity:        item.quantity,
+				TransferDate:    week2Date,
+				EmployeeID:      employeeMap["EMP005"],
+				BatchCode:       strPtr(batchCode),
+				Notes:           strPtr("Weekly restock"),
+			}
+			transfers = append(transfers, transfer)
+			transferNo++
+
+			tx.Model(&models.WarehouseInventory{}).
+				Where("warehouse_id = ? AND product_id = ? AND batch_code = ?", mainWarehouseID, productID, batchCode).
+				Update("quantity", gorm.Expr("quantity - ?", item.quantity))
+		}
+	}
+
+	// Week 3 restock (Sep 5)
+	week3Date, _ := time.Parse("2006-01-02 15:04:05", "2025-09-05 10:00:00")
+	week3Restocks := []struct {
+		productCode string
+		quantity    int
+	}{
+		{"TP001", 30}, {"TP002", 20}, {"DU001", 50}, {"DU002", 40}, {"VPP001", 60},
+	}
+
+	for _, item := range week3Restocks {
+		productID := productMap[item.productCode]
+		shelfID, exists := productShelfMap[productID]
+		if !exists {
+			continue
+		}
+
+		if invs, ok := warehouseStock[productID]; ok && len(invs) > 0 {
+			// Check available quantity across all batches
+			totalAvailable := 0
+			var selectedBatch string
+			for _, inv := range invs {
+				// Get current quantity from DB
+				var currentInv models.WarehouseInventory
+				tx.Where("warehouse_id = ? AND product_id = ? AND batch_code = ?",
+					mainWarehouseID, productID, inv.BatchCode).First(&currentInv)
+				if currentInv.Quantity >= item.quantity {
+					selectedBatch = inv.BatchCode
+					totalAvailable = currentInv.Quantity
+					break
+				} else if currentInv.Quantity > 0 && currentInv.Quantity > totalAvailable {
+					selectedBatch = inv.BatchCode
+					totalAvailable = currentInv.Quantity
+				}
+			}
+
+			if selectedBatch == "" || totalAvailable == 0 {
+				continue // Skip if no inventory available
+			}
+
+			// Adjust quantity if not enough available
+			transferQty := item.quantity
+			if transferQty > totalAvailable {
+				transferQty = totalAvailable
+			}
+
+			transfer := models.StockTransfer{
+				TransferCode:    fmt.Sprintf("ST-2025-09-%03d", transferNo),
+				ProductID:       productID,
+				FromWarehouseID: mainWarehouseID,
+				ToShelfID:       shelfID,
+				Quantity:        transferQty,
+				TransferDate:    week3Date,
+				EmployeeID:      employeeMap["EMP005"],
+				BatchCode:       strPtr(selectedBatch),
+				Notes:           strPtr("Weekly restock"),
+			}
+			transfers = append(transfers, transfer)
+			transferNo++
+
+			tx.Model(&models.WarehouseInventory{}).
+				Where("warehouse_id = ? AND product_id = ? AND batch_code = ?", mainWarehouseID, productID, selectedBatch).
+				Update("quantity", gorm.Expr("quantity - ?", transferQty))
+		}
+	}
+
+	// Create all transfers
 	if err := tx.Create(&transfers).Error; err != nil {
 		return err
 	}
+
+	// Update shelf inventory based on transfers
+	for _, transfer := range transfers {
+		// Check if shelf inventory exists
+		var shelfInv models.ShelfInventory
+		result := tx.Where("shelf_id = ? AND product_id = ?", transfer.ToShelfID, transfer.ProductID).First(&shelfInv)
+
+		if result.Error == gorm.ErrRecordNotFound {
+			// Create new shelf inventory
+			newShelfInv := models.ShelfInventory{
+				ShelfID:         transfer.ToShelfID,
+				ProductID:       transfer.ProductID,
+				CurrentQuantity: transfer.Quantity,
+			}
+			tx.Create(&newShelfInv)
+		} else {
+			// Update existing shelf inventory
+			tx.Model(&shelfInv).Update("current_quantity", shelfInv.CurrentQuantity+transfer.Quantity)
+		}
+	}
+
 	log.Printf("  ✓ Seeded %d stock transfers", len(transfers))
+	log.Printf("  ✓ Updated shelf inventory based on transfers")
 	return nil
 }
 
 func seedSalesInvoices(tx *gorm.DB, customerMap map[string]uint, employeeMap map[string]uint, productMap map[string]uint) error {
-	// Create sales from September 1-14, 2025
-	invoices := []models.SalesInvoice{
-		// September 2
-		{
-			InvoiceNo:      "INV-2025-09-001",
-			CustomerID:     uintPtr(customerMap["CUST001"]), // Customer 1
-			EmployeeID:     employeeMap["EMP003"],           // Cashier
-			InvoiceDate:    time.Date(2025, 9, 2, 10, 30, 0, 0, time.Local),
-			Subtotal:       47000,
-			DiscountAmount: 0,
-			TaxAmount:      4700,
-			TotalAmount:    51700,
-			PaymentMethod:  paymentMethodPtr(models.PaymentCash),
-			PointsEarned:   47,
-			PointsUsed:     0,
-		},
-		// September 5
-		{
-			InvoiceNo:      "INV-2025-09-002",
-			CustomerID:     uintPtr(customerMap["CUST002"]), // Customer 2
-			EmployeeID:     employeeMap["EMP006"],           // Cashier 2
-			InvoiceDate:    time.Date(2025, 9, 5, 14, 15, 0, 0, time.Local),
-			Subtotal:       385000,
-			DiscountAmount: 11550, // 3% member discount
-			TaxAmount:      37345,
-			TotalAmount:    410795,
-			PaymentMethod:  paymentMethodPtr(models.PaymentCard),
-			PointsEarned:   462, // 1.2x multiplier
-			PointsUsed:     100,
-		},
-		// September 8
-		{
-			InvoiceNo:      "INV-2025-09-003",
-			CustomerID:     uintPtr(customerMap["CUST003"]), // Customer 3
-			EmployeeID:     employeeMap["EMP003"],
-			InvoiceDate:    time.Date(2025, 9, 8, 11, 45, 0, 0, time.Local),
-			Subtotal:       850000,
-			DiscountAmount: 42500, // 5% gold discount
-			TaxAmount:      80750,
-			TotalAmount:    888250,
-			PaymentMethod:  paymentMethodPtr(models.PaymentCard),
-			PointsEarned:   1275, // 1.5x multiplier
-			PointsUsed:     500,
-		},
-		// September 10 - Walk-in customer (no membership)
-		{
-			InvoiceNo:      "INV-2025-09-004",
-			CustomerID:     nil, // No member
-			EmployeeID:     employeeMap["EMP006"],
-			InvoiceDate:    time.Date(2025, 9, 10, 16, 20, 0, 0, time.Local),
-			Subtotal:       120000,
-			DiscountAmount: 0,
-			TaxAmount:      12000,
-			TotalAmount:    132000,
-			PaymentMethod:  paymentMethodPtr(models.PaymentCash),
-			PointsEarned:   0,
-			PointsUsed:     0,
-		},
-		// September 12
-		{
-			InvoiceNo:      "INV-2025-09-005",
-			CustomerID:     uintPtr(customerMap["CUST004"]), // Customer 4
-			EmployeeID:     employeeMap["EMP003"],
-			InvoiceDate:    time.Date(2025, 9, 12, 9, 30, 0, 0, time.Local),
-			Subtotal:       235000,
-			DiscountAmount: 0,
-			TaxAmount:      23500,
-			TotalAmount:    258500,
-			PaymentMethod:  paymentMethodPtr(models.PaymentCard),
-			PointsEarned:   235,
-			PointsUsed:     0,
-		},
-		// September 14 (today)
-		{
-			InvoiceNo:      "INV-2025-09-006",
-			CustomerID:     uintPtr(customerMap["CUST005"]), // Customer 5
-			EmployeeID:     employeeMap["EMP006"],
-			InvoiceDate:    time.Date(2025, 9, 14, 10, 00, 0, 0, time.Local),
-			Subtotal:       550000,
-			DiscountAmount: 44000, // 8% platinum discount
-			TaxAmount:      50600,
-			TotalAmount:    556600,
-			PaymentMethod:  paymentMethodPtr(models.PaymentCard),
-			PointsEarned:   1100, // 2x multiplier
-			PointsUsed:     1000,
-		},
+	// Load discount rules and product categories for realistic discount logic
+	var discountRules []models.DiscountRule
+	tx.Find(&discountRules)
+
+	discountRuleMap := make(map[uint][]models.DiscountRule) // categoryID -> discount rules
+	for _, rule := range discountRules {
+		discountRuleMap[rule.CategoryID] = append(discountRuleMap[rule.CategoryID], rule)
+	}
+
+	// Load products to get category information
+	var allProducts []models.Product
+	tx.Find(&allProducts)
+
+	productCategoryMap := make(map[uint]uint) // productID -> categoryID
+	for _, product := range allProducts {
+		productCategoryMap[product.ProductID] = product.CategoryID
+	}
+
+	// Create comprehensive daily sales from August 15 - September 14, 2025
+	startDate, _ := time.Parse("2006-01-02", "2025-08-15")
+
+	var invoices []models.SalesInvoice
+	invoiceNo := 1
+
+	// Generate daily sales for the entire month
+	for day := 0; day < 31; day++ {
+		currentDate := startDate.AddDate(0, 0, day)
+
+		// Generate 15-17 sales per day (500 total for the month)
+		salesPerDay := 15
+		if currentDate.Weekday() == time.Saturday || currentDate.Weekday() == time.Sunday {
+			salesPerDay = 17 // More sales on weekends
+		} else if currentDate.Weekday() == time.Friday {
+			salesPerDay = 16 // Moderate increase on Friday
+		}
+		for sale := 0; sale < salesPerDay; sale++ {
+			// Distribute sales evenly from 9 AM to 9 PM (12 hours)
+			hour := 9 + (sale * 12 / salesPerDay)
+			if hour >= 21 {
+				hour = 20 + (sale % 2) // Keep within 20-21h for late sales
+			}
+			minute := (sale * 37) % 60 // Vary minutes
+			saleTime := time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), hour, minute, 0, 0, time.Local)
+
+			// Random customer selection (including walk-ins)
+			var customerID *uint
+			if (day+sale)%5 != 0 { // 80% with membership, 20% walk-ins
+				// Select from 200 customers randomly but consistently
+				custIndex := ((day*13 + sale*7) % 200) + 1
+				custCode := fmt.Sprintf("CUST%03d", custIndex)
+				if custID, exists := customerMap[custCode]; exists {
+					customerID = uintPtr(custID)
+				}
+			}
+
+			// Random cashier
+			cashiers := []string{"EMP003", "EMP006"}
+			cashier := cashiers[(day+sale)%2]
+
+			// Generate invoice items first to calculate proper discounts - All 50 products
+			productCodes := []string{
+				// Văn phòng phẩm (15)
+				"VPP001", "VPP002", "VPP003", "VPP004", "VPP005", "VPP006", "VPP007", "VPP008", "VPP009", "VPP010",
+				"VPP011", "VPP012", "VPP013", "VPP014", "VPP015",
+				// Đồ gia dụng (15)
+				"GD001", "GD002", "GD003", "GD004", "GD005", "GD006", "GD007", "GD008", "GD009", "GD010",
+				"GD011", "GD012", "GD013", "GD014", "GD015",
+				// Đồ điện tử (15)
+				"DT001", "DT002", "DT003", "DT004", "DT005", "DT006", "DT007", "DT008", "DT009", "DT010",
+				"DT011", "DT012", "DT013", "DT014", "DT015",
+				// Đồ bếp (10)
+				"DB001", "DB002", "DB003", "DB004", "DB005", "DB006", "DB007", "DB008", "DB009", "DB010",
+				// Thực phẩm (20)
+				"TP001", "TP002", "TP003", "TP004", "TP005", "TP006", "TP007", "TP008", "TP009", "TP010",
+				"TP011", "TP012", "TP013", "TP014", "TP015", "TP016", "TP017", "TP018", "TP019", "TP020",
+				// Đồ uống (15)
+				"DU001", "DU002", "DU003", "DU004", "DU005", "DU006", "DU007", "DU008", "DU009", "DU010",
+				"DU011", "DU012", "DU013", "DU014", "DU015",
+				// Mỹ phẩm (10)
+				"MP001", "MP002", "MP003", "MP004", "MP005", "MP006", "MP007", "MP008", "MP009", "MP010",
+				// Thời trang (7)
+				"TT001", "TT002", "TT003", "TT004", "TT005", "TT006", "TT007",
+			}
+
+			// Calculate invoice items for proper discounts
+			numItems := 1 + ((day*7 + sale*3) % 5) + 1 // Random 2-6 items per invoice
+			subtotalBeforeDiscount := 0.0
+			totalDiscountAmount := 0.0
+
+			for item := 0; item < numItems; item++ {
+				productCode := productCodes[(day*sale+item)%len(productCodes)]
+				productID := productMap[productCode]
+				categoryID := productCategoryMap[productID]
+
+				// Get product's selling price
+				var product models.Product
+				tx.Where("product_id = ?", productID).First(&product)
+
+				quantity := 1 + (item % 3)
+				unitPrice := product.SellingPrice
+				lineSubtotal := unitPrice * float64(quantity)
+
+				// Apply discount logic based on discount rules for the category
+				discountPercentage := 0.0
+				discountAmount := 0.0
+
+				if rules, exists := discountRuleMap[categoryID]; exists && len(rules) > 0 {
+					// For perishable items (food, drinks), apply expiry-based discounts
+					foodCategories := []string{
+						"Thực phẩm - Đồ khô", "Thực phẩm - Rau quả",
+						"Thực phẩm - Thịt cá", "Thực phẩm - Sữa trứng",
+					}
+					drinkCategories := []string{
+						"Đồ uống - Có cồn", "Đồ uống - Không cồn", "Đồ uống - Nóng",
+					}
+
+					isFood := false
+					isDrink := false
+
+					for _, foodCat := range foodCategories {
+						if categoryID == getCategoryID(tx, foodCat) {
+							isFood = true
+							break
+						}
+					}
+					for _, drinkCat := range drinkCategories {
+						if categoryID == getCategoryID(tx, drinkCat) {
+							isDrink = true
+							break
+						}
+					}
+
+					if isFood || isDrink {
+						// 20% chance of getting close-to-expiry discount
+						if (day+sale+item)%5 == 0 {
+							// Use first discount rule (less aggressive)
+							discountPercentage = rules[0].DiscountPercentage
+						}
+					}
+				}
+
+				// Apply membership discounts for non-walk-in customers
+				if customerID != nil && discountPercentage == 0 {
+					// Small membership discount (2-5%)
+					discountPercentage = float64(2 + ((day + sale + item) % 4))
+				}
+
+				discountAmount = lineSubtotal * discountPercentage / 100.0
+
+				subtotalBeforeDiscount += lineSubtotal
+				totalDiscountAmount += discountAmount
+			}
+
+			// Calculate final invoice amounts
+			subtotal := subtotalBeforeDiscount - totalDiscountAmount
+			taxAmount := subtotal * 0.1 // 10% tax
+			totalAmount := subtotal + taxAmount
+
+			pointsEarned := 0
+			if customerID != nil {
+				pointsEarned = int(subtotal / 1000)
+			}
+
+			invoice := models.SalesInvoice{
+				InvoiceNo:      fmt.Sprintf("INV-2025-%02d-%03d", currentDate.Month(), invoiceNo),
+				CustomerID:     customerID,
+				EmployeeID:     employeeMap[cashier],
+				InvoiceDate:    saleTime,
+				Subtotal:       subtotalBeforeDiscount,
+				DiscountAmount: totalDiscountAmount,
+				TaxAmount:      taxAmount,
+				TotalAmount:    totalAmount,
+				PaymentMethod:  paymentMethodPtr(getRandomPaymentMethod(day, sale)),
+				PointsEarned:   pointsEarned,
+				PointsUsed:     0,
+			}
+
+			if invoiceNo%10 == 0 && customerID != nil { // Some customers use points
+				invoice.PointsUsed = pointsEarned / 2
+			}
+
+			invoices = append(invoices, invoice)
+			invoiceNo++
+		}
 	}
 
 	if err := tx.Create(&invoices).Error; err != nil {
@@ -862,42 +1689,137 @@ func seedSalesInvoices(tx *gorm.DB, customerMap map[string]uint, employeeMap map
 	}
 	log.Printf("  ✓ Seeded %d sales invoices", len(invoices))
 
-	// Get the invoice IDs that were just created
-	var createdInvoices []models.SalesInvoice
-	tx.Order("invoice_id").Find(&createdInvoices)
+	// Generate sales invoice details with proper discount logic
+	var allInvoices []models.SalesInvoice
+	tx.Order("invoice_id").Find(&allInvoices)
 
-	// Seed sales invoice details
-	details := []models.SalesInvoiceDetail{
-		// Invoice 1 - Small purchase
-		{InvoiceID: createdInvoices[0].InvoiceID, ProductID: productMap["VPP001"], Quantity: 2, UnitPrice: 5000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 10000},
-		{InvoiceID: createdInvoices[0].InvoiceID, ProductID: productMap["VPP002"], Quantity: 3, UnitPrice: 12000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 36000},
+	var details []models.SalesInvoiceDetail
 
-		// Invoice 2 - Medium purchase
-		{InvoiceID: createdInvoices[1].InvoiceID, ProductID: productMap["TP001"], Quantity: 2, UnitPrice: 180000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 360000},
-		{InvoiceID: createdInvoices[1].InvoiceID, ProductID: productMap["VPP003"], Quantity: 5, UnitPrice: 3500, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 17500},
+	// Generate details for ALL invoices with realistic discount logic - All 50 products
+	for i, invoice := range allInvoices {
+		productCodes := []string{
+			// Văn phòng phẩm (15)
+			"VPP001", "VPP002", "VPP003", "VPP004", "VPP005", "VPP006", "VPP007", "VPP008", "VPP009", "VPP010",
+			"VPP011", "VPP012", "VPP013", "VPP014", "VPP015",
+			// Đồ gia dụng (15)
+			"GD001", "GD002", "GD003", "GD004", "GD005", "GD006", "GD007", "GD008", "GD009", "GD010",
+			"GD011", "GD012", "GD013", "GD014", "GD015",
+			// Đồ điện tử (15)
+			"DT001", "DT002", "DT003", "DT004", "DT005", "DT006", "DT007", "DT008", "DT009", "DT010",
+			"DT011", "DT012", "DT013", "DT014", "DT015",
+			// Đồ bếp (10)
+			"DB001", "DB002", "DB003", "DB004", "DB005", "DB006", "DB007", "DB008", "DB009", "DB010",
+			// Thực phẩm (20)
+			"TP001", "TP002", "TP003", "TP004", "TP005", "TP006", "TP007", "TP008", "TP009", "TP010",
+			"TP011", "TP012", "TP013", "TP014", "TP015", "TP016", "TP017", "TP018", "TP019", "TP020",
+			// Đồ uống (15)
+			"DU001", "DU002", "DU003", "DU004", "DU005", "DU006", "DU007", "DU008", "DU009", "DU010",
+			"DU011", "DU012", "DU013", "DU014", "DU015",
+			// Mỹ phẩm (10)
+			"MP001", "MP002", "MP003", "MP004", "MP005", "MP006", "MP007", "MP008", "MP009", "MP010",
+			// Thời trang (7)
+			"TT001", "TT002", "TT003", "TT004", "TT005", "TT006", "TT007",
+		}
 
-		// Invoice 3 - Large purchase
-		{InvoiceID: createdInvoices[2].InvoiceID, ProductID: productMap["DT001"], Quantity: 2, UnitPrice: 350000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 700000},
-		{InvoiceID: createdInvoices[2].InvoiceID, ProductID: productMap["DT002"], Quantity: 1, UnitPrice: 300000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 300000},
+		// Recreate the same items as calculated above
+		day := i / 16  // Approximate day
+		sale := i % 16 // Approximate sale number within day
+		numItems := 1 + ((day*7 + sale*3) % 5) + 1
 
-		// Invoice 4 - Walk-in customer
-		{InvoiceID: createdInvoices[3].InvoiceID, ProductID: productMap["DU001"], Quantity: 1, UnitPrice: 120000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 120000},
+		for item := 0; item < numItems; item++ {
+			productCode := productCodes[(day*sale+item)%len(productCodes)]
+			productID := productMap[productCode]
+			categoryID := productCategoryMap[productID]
 
-		// Invoice 5
-		{InvoiceID: createdInvoices[4].InvoiceID, ProductID: productMap["TP002"], Quantity: 2, UnitPrice: 115000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 230000},
-		{InvoiceID: createdInvoices[4].InvoiceID, ProductID: productMap["VPP001"], Quantity: 1, UnitPrice: 5000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 5000},
+			// Get product's selling price
+			var product models.Product
+			tx.Where("product_id = ?", productID).First(&product)
 
-		// Invoice 6 - Today's sale
-		{InvoiceID: createdInvoices[5].InvoiceID, ProductID: productMap["GD001"], Quantity: 1, UnitPrice: 250000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 250000},
-		{InvoiceID: createdInvoices[5].InvoiceID, ProductID: productMap["DU002"], Quantity: 1, UnitPrice: 200000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 200000},
-		{InvoiceID: createdInvoices[5].InvoiceID, ProductID: productMap["DU003"], Quantity: 1, UnitPrice: 260000, DiscountPercentage: 0, DiscountAmount: 0, Subtotal: 260000},
+			quantity := 1 + (item % 3)
+			unitPrice := product.SellingPrice
+			lineSubtotal := unitPrice * float64(quantity)
+
+			// Apply same discount logic as above
+			discountPercentage := 0.0
+			discountAmount := 0.0
+
+			if rules, exists := discountRuleMap[categoryID]; exists && len(rules) > 0 {
+				foodCategories := []string{
+					"Thực phẩm - Đồ khô", "Thực phẩm - Rau quả",
+					"Thực phẩm - Thịt cá", "Thực phẩm - Sữa trứng",
+				}
+				drinkCategories := []string{
+					"Đồ uống - Có cồn", "Đồ uống - Không cồn", "Đồ uống - Nóng",
+				}
+
+				isFood := false
+				isDrink := false
+
+				for _, foodCat := range foodCategories {
+					if categoryID == getCategoryID(tx, foodCat) {
+						isFood = true
+						break
+					}
+				}
+				for _, drinkCat := range drinkCategories {
+					if categoryID == getCategoryID(tx, drinkCat) {
+						isDrink = true
+						break
+					}
+				}
+
+				if isFood || isDrink {
+					if (day+sale+item)%5 == 0 {
+						discountPercentage = rules[0].DiscountPercentage
+					}
+				}
+			}
+
+			// Apply membership discounts for non-walk-in customers
+			if invoice.CustomerID != nil && discountPercentage == 0 {
+				discountPercentage = float64(2 + ((day + sale + item) % 4))
+			}
+
+			discountAmount = lineSubtotal * discountPercentage / 100.0
+			finalSubtotal := lineSubtotal - discountAmount
+
+			details = append(details, models.SalesInvoiceDetail{
+				InvoiceID:          invoice.InvoiceID,
+				ProductID:          productID,
+				Quantity:           quantity,
+				UnitPrice:          unitPrice,
+				DiscountPercentage: discountPercentage,
+				DiscountAmount:     discountAmount,
+				Subtotal:           finalSubtotal,
+			})
+		}
 	}
 
-	if err := tx.Create(&details).Error; err != nil {
-		return err
+	if len(details) > 0 {
+		if err := tx.Create(&details).Error; err != nil {
+			return err
+		}
+		log.Printf("  ✓ Seeded %d sales invoice details", len(details))
 	}
-	log.Printf("  ✓ Seeded %d sales invoice details", len(details))
+
 	return nil
+}
+
+// Helper function to get category ID by name
+func getCategoryID(tx *gorm.DB, categoryName string) uint {
+	var category models.ProductCategory
+	tx.Where("category_name = ?", categoryName).First(&category)
+	return category.CategoryID
+}
+
+// Helper function for random payment method
+func getRandomPaymentMethod(day, sale int) models.PaymentMethod {
+	methods := []models.PaymentMethod{
+		models.PaymentCash,
+		models.PaymentCard,
+		models.PaymentCard, // Weight towards card payments
+	}
+	return methods[(day+sale)%len(methods)]
 }
 
 // Helper functions
