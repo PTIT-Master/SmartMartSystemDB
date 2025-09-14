@@ -181,6 +181,27 @@ go run cmd/migrate/main.go -schema  # Schema only
 go run test_connection.go           # Test connection
 ```
 
+### Database Seeding Commands
+
+```bash
+# On Linux/macOS - Using Makefile
+make seed             # Seed database with sample data
+make seed-force       # Force re-seed (clear and re-insert)
+make setup            # Complete setup (migrate + seed)
+make reset            # Full reset (drop + migrate + seed)
+
+# On Windows - Using make.bat
+make.bat seed             # Seed database with sample data  
+make.bat seed-force       # Force re-seed (clear and re-insert)
+make.bat setup            # Complete setup (migrate + seed)
+make.bat reset            # Full reset (drop + migrate + seed)
+
+# Using Go directly (all platforms)
+go run cmd/seed/main.go           # Seed database
+go run cmd/seed/main.go -force    # Force re-seed
+go run main.go -migrate -seed     # Run app with migration and seed
+```
+
 ### Building for Production
 
 ```bash

@@ -3,6 +3,7 @@
 # Variables
 MAIN_PACKAGE = .
 MIGRATE_PACKAGE = ./cmd/migrate
+SEED_PACKAGE = ./cmd/seed
 BINARY_NAME = supermarket-app
 
 # Go commands
@@ -15,7 +16,7 @@ GOMOD = $(GOCMD) mod
 GORUN = $(GOCMD) run
 
 # Targets
-.PHONY: help build clean test run migrate migrate-drop migrate-schema deps
+.PHONY: help build clean test run migrate migrate-drop migrate-schema seed seed-force setup reset deps
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -52,6 +53,21 @@ migrate-drop: ## Drop all tables and recreate (WARNING: Data loss!)
 
 migrate-schema: ## Create schema only
 	$(GORUN) $(MIGRATE_PACKAGE) -schema
+
+seed: ## Seed database with sample data
+	$(GORUN) $(SEED_PACKAGE)
+
+seed-force: ## Force re-seed (clear existing data and re-insert)
+	$(GORUN) $(SEED_PACKAGE) -force
+
+run-seed: ## Run application with seed data
+	$(GORUN) $(MAIN_PACKAGE) -seed
+
+setup: migrate seed ## Setup database (migrate and seed)
+	@echo "Database setup complete!"
+
+reset: migrate-drop seed ## Reset database (drop, migrate, and seed)
+	@echo "Database reset complete!"
 
 dev: ## Run in development mode with auto-reload (requires air)
 	@which air > /dev/null || (echo "Installing air..." && go install github.com/cosmtrek/air@latest)

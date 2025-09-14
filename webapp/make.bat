@@ -13,6 +13,11 @@ if "%1"=="run-migrate" goto run-migrate
 if "%1"=="migrate" goto migrate
 if "%1"=="migrate-drop" goto migrate-drop
 if "%1"=="migrate-schema" goto migrate-schema
+if "%1"=="seed" goto seed
+if "%1"=="seed-force" goto seed-force
+if "%1"=="run-seed" goto run-seed
+if "%1"=="setup" goto setup
+if "%1"=="reset" goto reset
 
 echo Unknown command: %1
 goto help
@@ -35,6 +40,11 @@ echo   run-migrate      Run the application with migration
 echo   migrate          Run database migration
 echo   migrate-drop     Drop all tables and recreate (WARNING: Data loss!)
 echo   migrate-schema   Create schema only
+echo   seed             Seed database with sample data
+echo   seed-force       Force re-seed (clear existing data and re-insert)
+echo   run-seed         Run application with seed data
+echo   setup            Setup database (migrate and seed)
+echo   reset            Reset database (drop, migrate, and seed)
 echo.
 goto end
 
@@ -95,6 +105,44 @@ goto end
 :migrate-schema
 echo Creating schema only...
 go run cmd/migrate/main.go -schema
+goto end
+
+:seed
+echo Seeding database with sample data...
+go run cmd/seed/main.go
+goto end
+
+:seed-force
+echo Force re-seeding database...
+go run cmd/seed/main.go -force
+goto end
+
+:run-seed
+echo Running application with seed data...
+go run main.go -seed
+goto end
+
+:setup
+echo Setting up database (migrate and seed)...
+go run cmd/migrate/main.go
+if %errorlevel% neq 0 goto end
+go run cmd/seed/main.go
+echo Database setup complete!
+goto end
+
+:reset
+echo Resetting database (drop, migrate, and seed)...
+echo WARNING: This will delete all data!
+echo.
+set /p confirm="Are you sure? (y/N): "
+if /i "%confirm%"=="y" (
+    go run cmd/migrate/main.go -drop
+    if %errorlevel% neq 0 goto end
+    go run cmd/seed/main.go
+    echo Database reset complete!
+) else (
+    echo Reset cancelled.
+)
 goto end
 
 :end

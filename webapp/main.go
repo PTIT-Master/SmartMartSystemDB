@@ -15,6 +15,7 @@ func main() {
 	// Command line flags
 	var (
 		migrate = flag.Bool("migrate", false, "Run database migration on startup")
+		seed    = flag.Bool("seed", false, "Seed database with sample data")
 		help    = flag.Bool("help", false, "Show help")
 	)
 
@@ -51,6 +52,15 @@ func main() {
 		log.Println("Migration completed successfully")
 	}
 
+	// Seed database if requested
+	if *seed {
+		log.Println("Seeding database with sample data...")
+		if err := database.SeedData(database.DB); err != nil {
+			log.Fatalf("Failed to seed database: %v", err)
+		}
+		log.Println("Database seeded successfully")
+	}
+
 	log.Printf("Server starting on port %s in %s mode", cfg.App.Port, cfg.App.Environment)
 
 	// Setup graceful shutdown
@@ -71,6 +81,7 @@ Usage:
 
 Options:
   -migrate  Run GORM AutoMigrate on startup
+  -seed     Seed database with sample data
   -help     Show this help message
 
 Examples:
@@ -80,7 +91,16 @@ Examples:
   # Start server with migration
   go run main.go -migrate
 
+  # Start server with migration and seed
+  go run main.go -migrate -seed
+
+  # Seed data only
+  go run main.go -seed
+
 For full migration control, use:
   go run cmd/migrate/main.go
+
+For full seed control, use:
+  go run cmd/seed/main.go
 `)
 }
