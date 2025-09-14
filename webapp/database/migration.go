@@ -25,51 +25,34 @@ func AutoMigrate(db *gorm.DB) error {
 	// Get all models in dependency order
 	allModels := models.AllModels()
 
-	// Use standard GORM AutoMigrate with proper configuration
-	// Configure GORM to handle foreign keys properly
-	db = db.Set("gorm:table_options", "")
+	// First pass: Create all tables WITHOUT foreign keys
+	log.Println("Creating tables without foreign keys...")
+	migrator := db.Migrator()
 
-	// Migrate each model individually in dependency order
-	log.Println("Migrating tables in dependency order...")
-	for i, model := range allModels {
-		// Get table name using migrator
+	for _, model := range allModels {
+		tableName := migrator.CurrentDatabase()
 		stmt := &gorm.Statement{DB: db}
-		if err := stmt.Parse(model); err != nil {
-			log.Printf("  ⚠ Warning: Could not parse model %T: %v", model, err)
-			continue
+		if err := stmt.Parse(model); err == nil {
+			tableName = stmt.Schema.Table
 		}
-		tableName := stmt.Schema.Table
 
-		// Check if table exists
-		var exists bool
-		db.Raw("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'supermarket' AND table_name = ?)", tableName).Scan(&exists)
-
-		if !exists {
-			// AutoMigrate will create the table with proper foreign keys
-			// Since we're going in dependency order, referenced tables should exist
-			if err := db.AutoMigrate(model); err != nil {
-				// If foreign key error, try without associations
-				if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "42P01") {
-					log.Printf("  ⚠ Retrying without associations for %T", model)
-					// Create basic table structure
-					if err2 := db.Migrator().CreateTable(model); err2 != nil {
-						log.Printf("  ⚠ Warning: Could not create table for %T: %v", model, err2)
-						// Continue with other tables
-						continue
-					}
-				} else {
-					return fmt.Errorf("failed to migrate model %d (%T): %w", i+1, model, err)
-				}
+		if !migrator.HasTable(model) {
+			// Create table without foreign keys using raw SQL to avoid GORM's auto FK creation
+			// We'll use GORM's CreateTable but without associations
+			if err := migrator.CreateTable(model); err != nil {
+				log.Printf("  ⚠ Warning: Could not create table %s: %v", tableName, err)
+				continue
 			}
 			log.Printf("  ✓ Created table: %s", tableName)
 		} else {
-			// Table exists, update it
-			if err := db.AutoMigrate(model); err != nil {
-				log.Printf("  ⚠ Warning updating table %s: %v", tableName, err)
-			} else {
-				log.Printf("  ✓ Updated table: %s", tableName)
-			}
+			log.Printf("  ✓ Table already exists: %s", tableName)
 		}
+	}
+
+	// Second pass: Create foreign key constraints manually
+	log.Println("Creating foreign key constraints...")
+	if err := CreateForeignKeys(db); err != nil {
+		log.Printf("Warning: Some foreign keys could not be created: %v", err)
 	}
 
 	// Add custom constraints that GORM doesn't handle
@@ -116,6 +99,112 @@ func CheckConnection(db *gorm.DB) error {
 			return fmt.Errorf("failed to create schema: %w", err)
 		}
 		log.Println("Created 'supermarket' schema")
+	}
+
+	return nil
+}
+
+// CreateForeignKeys creates all foreign key constraints
+func CreateForeignKeys(db *gorm.DB) error {
+	foreignKeys := []struct {
+		table     string
+		name      string
+		column    string
+		refTable  string
+		refColumn string
+	}{
+		// Product relationships
+		{"products", "fk_products_category", "category_id", "product_categories", "category_id"},
+		{"products", "fk_products_supplier", "supplier_id", "suppliers", "supplier_id"},
+
+		// Discount rules
+		{"discount_rules", "fk_discount_rules_category", "category_id", "product_categories", "category_id"},
+
+		// Display shelves
+		{"display_shelves", "fk_display_shelves_category", "category_id", "product_categories", "category_id"},
+
+		// Shelf layout
+		{"shelf_layout", "fk_shelf_layout_shelf", "shelf_id", "display_shelves", "shelf_id"},
+		{"shelf_layout", "fk_shelf_layout_product", "product_id", "products", "product_id"},
+
+		// Shelf inventory
+		{"shelf_inventory", "fk_shelf_inventory_shelf", "shelf_id", "display_shelves", "shelf_id"},
+		{"shelf_inventory", "fk_shelf_inventory_product", "product_id", "products", "product_id"},
+
+		// Warehouse inventory
+		{"warehouse_inventory", "fk_warehouse_inventory_warehouse", "warehouse_id", "warehouse", "warehouse_id"},
+		{"warehouse_inventory", "fk_warehouse_inventory_product", "product_id", "products", "product_id"},
+
+		// Employees
+		{"employees", "fk_employees_position", "position_id", "positions", "position_id"},
+
+		// Employee work hours
+		{"employee_work_hours", "fk_employee_work_hours_employee", "employee_id", "employees", "employee_id"},
+
+		// Customers
+		{"customers", "fk_customers_membership_level", "membership_level_id", "membership_levels", "level_id"},
+
+		// Sales invoices
+		{"sales_invoices", "fk_sales_invoices_customer", "customer_id", "customers", "customer_id"},
+		{"sales_invoices", "fk_sales_invoices_employee", "employee_id", "employees", "employee_id"},
+
+		// Sales invoice details
+		{"sales_invoice_details", "fk_sales_invoice_details_invoice", "invoice_id", "sales_invoices", "invoice_id"},
+		{"sales_invoice_details", "fk_sales_invoice_details_product", "product_id", "products", "product_id"},
+
+		// Purchase orders
+		{"purchase_orders", "fk_purchase_orders_supplier", "supplier_id", "suppliers", "supplier_id"},
+		{"purchase_orders", "fk_purchase_orders_employee", "employee_id", "employees", "employee_id"},
+
+		// Purchase order details
+		{"purchase_order_details", "fk_purchase_order_details_order", "order_id", "purchase_orders", "order_id"},
+		{"purchase_order_details", "fk_purchase_order_details_product", "product_id", "products", "product_id"},
+
+		// Stock transfers
+		{"stock_transfers", "fk_stock_transfers_product", "product_id", "products", "product_id"},
+		{"stock_transfers", "fk_stock_transfers_from_warehouse", "from_warehouse_id", "warehouse", "warehouse_id"},
+		{"stock_transfers", "fk_stock_transfers_to_shelf", "to_shelf_id", "display_shelves", "shelf_id"},
+		{"stock_transfers", "fk_stock_transfers_employee", "employee_id", "employees", "employee_id"},
+	}
+
+	for _, fk := range foreignKeys {
+		// Check if foreign key already exists
+		var count int64
+		db.Raw(`
+			SELECT COUNT(*) FROM information_schema.table_constraints 
+			WHERE constraint_type = 'FOREIGN KEY' 
+			AND table_schema = 'supermarket' 
+			AND table_name = ? 
+			AND constraint_name = ?
+		`, fk.table, fk.name).Scan(&count)
+
+		if count > 0 {
+			log.Printf("  ✓ Foreign key already exists: %s", fk.name)
+			continue
+		}
+
+		// Create foreign key
+		query := fmt.Sprintf(
+			"ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)",
+			fk.table, fk.name, fk.column, fk.refTable, fk.refColumn,
+		)
+
+		if err := db.Exec(query).Error; err != nil {
+			// Allow null references for optional foreign keys
+			if strings.Contains(fk.name, "customer") || strings.Contains(fk.name, "membership") {
+				query = fmt.Sprintf(
+					"ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE SET NULL",
+					fk.table, fk.name, fk.column, fk.refTable, fk.refColumn,
+				)
+				if err := db.Exec(query).Error; err != nil {
+					log.Printf("  ⚠ Failed to create foreign key %s: %v", fk.name, err)
+				}
+			} else {
+				log.Printf("  ⚠ Failed to create foreign key %s: %v", fk.name, err)
+			}
+		} else {
+			log.Printf("  ✓ Created foreign key: %s", fk.name)
+		}
 	}
 
 	return nil

@@ -25,8 +25,8 @@ func (Warehouse) TableName() string {
 // WarehouseInventory represents warehouse_inventory table
 type WarehouseInventory struct {
 	InventoryID uint       `gorm:"primaryKey;column:inventory_id" json:"inventory_id"`
-	WarehouseID uint       `gorm:"not null;default:1" json:"warehouse_id"`
-	ProductID   uint       `gorm:"not null" json:"product_id"`
+	WarehouseID uint       `gorm:"not null;default:1;column:warehouse_id" json:"warehouse_id"`
+	ProductID   uint       `gorm:"not null;column:product_id" json:"product_id"`
 	BatchCode   string     `gorm:"type:varchar(50);not null" json:"batch_code"`
 	Quantity    int        `gorm:"not null;default:0;check:quantity >= 0" json:"quantity"`
 	ImportDate  time.Time  `gorm:"type:date;not null;default:CURRENT_DATE" json:"import_date"`
@@ -36,8 +36,8 @@ type WarehouseInventory struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 
 	// Relationships
-	Warehouse Warehouse `gorm:"foreignKey:WarehouseID" json:"warehouse,omitempty"`
-	Product   Product   `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	Warehouse Warehouse `gorm:"foreignKey:WarehouseID;references:WarehouseID" json:"warehouse,omitempty"`
+	Product   Product   `gorm:"foreignKey:ProductID;references:ProductID" json:"product,omitempty"`
 }
 
 // TableName specifies the table name for WarehouseInventory
