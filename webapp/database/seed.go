@@ -679,32 +679,175 @@ func seedWarehouseInventory(tx *gorm.DB, warehouseMap map[string]uint, productMa
 }
 
 func seedShelfData(tx *gorm.DB, shelfMap map[string]uint, productMap map[string]uint) error {
-	// Shelf Layout
-	layouts := []models.ShelfLayout{
-		// Văn phòng phẩm
-		{ShelfID: shelfMap["SH001"], ProductID: productMap["VPP001"], PositionCode: "A1", MaxQuantity: 100},
-		{ShelfID: shelfMap["SH001"], ProductID: productMap["VPP002"], PositionCode: "A2", MaxQuantity: 80},
-		{ShelfID: shelfMap["SH001"], ProductID: productMap["VPP003"], PositionCode: "A3", MaxQuantity: 120},
+	// Comprehensive Shelf Layout for all purchased products
+	layouts := []models.ShelfLayout{}
 
-		// Đồ gia dụng
-		{ShelfID: shelfMap["SH002"], ProductID: productMap["GD001"], PositionCode: "B1", MaxQuantity: 20},
-		{ShelfID: shelfMap["SH002"], ProductID: productMap["GD002"], PositionCode: "B2", MaxQuantity: 15},
-		{ShelfID: shelfMap["SH002"], ProductID: productMap["GD003"], PositionCode: "B3", MaxQuantity: 40},
+	// SH001: Văn phòng phẩm shelf (15 products)
+	for i := 1; i <= 15; i++ {
+		code := fmt.Sprintf("VPP%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("A%d", i)
+			maxQty := 100
+			if i > 10 {
+				maxQty = 50 // Smaller quantities for less common items
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH001"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+		}
+	}
 
-		// Điện tử
-		{ShelfID: shelfMap["SH003"], ProductID: productMap["DT001"], PositionCode: "C1", MaxQuantity: 30},
-		{ShelfID: shelfMap["SH003"], ProductID: productMap["DT002"], PositionCode: "C2", MaxQuantity: 25},
-		{ShelfID: shelfMap["SH003"], ProductID: productMap["DT003"], PositionCode: "C3", MaxQuantity: 50},
+	// SH002: Đồ gia dụng shelf (15 home goods + 10 kitchen items)
+	posCounter := 1
+	for i := 1; i <= 15; i++ {
+		code := fmt.Sprintf("GD%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("B%d", posCounter)
+			maxQty := 30
+			if i <= 5 {
+				maxQty = 20 // Expensive items have lower max quantity
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH002"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+			posCounter++
+		}
+	}
+	// Add kitchen items to same shelf
+	for i := 1; i <= 10; i++ {
+		code := fmt.Sprintf("DB%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("B%d", posCounter)
+			maxQty := 15
+			if i <= 5 {
+				maxQty = 10 // Appliances have lower quantity
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH002"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+			posCounter++
+		}
+	}
 
-		// Thực phẩm
-		{ShelfID: shelfMap["SH004"], ProductID: productMap["TP001"], PositionCode: "D1", MaxQuantity: 50},
-		{ShelfID: shelfMap["SH004"], ProductID: productMap["TP002"], PositionCode: "D2", MaxQuantity: 100},
-		{ShelfID: shelfMap["SH004"], ProductID: productMap["TP003"], PositionCode: "D3", MaxQuantity: 80},
+	// SH003: Điện tử shelf (15 products)
+	for i := 1; i <= 15; i++ {
+		code := fmt.Sprintf("DT%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("C%d", i)
+			maxQty := 40
+			if i <= 5 {
+				maxQty = 25 // Higher value items
+			} else if i > 10 {
+				maxQty = 60 // Accessories
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH003"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+		}
+	}
 
-		// Đồ uống
-		{ShelfID: shelfMap["SH005"], ProductID: productMap["DU001"], PositionCode: "E1", MaxQuantity: 60},
-		{ShelfID: shelfMap["SH005"], ProductID: productMap["DU002"], PositionCode: "E2", MaxQuantity: 50},
-		{ShelfID: shelfMap["SH005"], ProductID: productMap["DU003"], PositionCode: "E3", MaxQuantity: 55},
+	// SH004: Thực phẩm khô shelf (20 food products)
+	for i := 1; i <= 20; i++ {
+		code := fmt.Sprintf("TP%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("D%d", i)
+			maxQty := 80
+			if i <= 8 {
+				maxQty = 100 // Dry goods can stock more
+			} else if i <= 13 {
+				maxQty = 60 // Fresh produce
+			} else if i <= 17 {
+				maxQty = 40 // Meat/seafood
+			} else {
+				maxQty = 120 // Dairy/eggs high turnover
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH004"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+		}
+	}
+
+	// SH005: Đồ uống shelf (15 beverages)
+	for i := 1; i <= 15; i++ {
+		code := fmt.Sprintf("DU%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("E%d", i)
+			maxQty := 60
+			if i <= 3 {
+				maxQty = 48 // Beer/wine cases
+			} else if i <= 11 {
+				maxQty = 72 // Soft drinks
+			} else {
+				maxQty = 40 // Coffee/tea
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH005"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+		}
+	}
+
+	// SH006: Văn phòng phẩm 2 - currently empty, can be used for overflow
+
+	// SH007: Rau quả tươi - handled in SH004 with food products
+
+	// SH008: Mỹ phẩm shelf (10 cosmetics + 7 fashion items)
+	posCounter = 1
+	for i := 1; i <= 10; i++ {
+		code := fmt.Sprintf("MP%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("G%d", posCounter)
+			maxQty := 40
+			if i <= 4 {
+				maxQty = 30 // Skincare
+			} else if i <= 7 {
+				maxQty = 25 // Makeup
+			} else {
+				maxQty = 50 // Personal hygiene
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH008"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+			posCounter++
+		}
+	}
+	// Add fashion items to cosmetics shelf
+	for i := 1; i <= 7; i++ {
+		code := fmt.Sprintf("TT%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			posCode := fmt.Sprintf("G%d", posCounter)
+			maxQty := 20
+			if i <= 4 {
+				maxQty = 15 // Clothing items
+			}
+			layouts = append(layouts, models.ShelfLayout{
+				ShelfID:      shelfMap["SH008"],
+				ProductID:    prodID,
+				PositionCode: posCode,
+				MaxQuantity:  maxQty,
+			})
+			posCounter++
+		}
 	}
 
 	if err := tx.Create(&layouts).Error; err != nil {
@@ -956,37 +1099,60 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		return err
 	}
 
-	// Add food products with expiry dates
-	foodProducts := []string{"TP001", "TP002", "TP003", "TP004", "TP005"}
+	// Add ALL food products (TP001-TP020) with expiry dates
 	totalAmount = 0.0
-	expiryDate := initialDate.AddDate(0, 6, 0) // 6 months expiry
-	for _, code := range foodProducts {
-		prodID := productMap[code]
-		product := productDetailMap[prodID]
-		quantity := 200                         // Food products need regular restocking
-		unitPrice := product.SellingPrice * 0.5 // Higher margin for food
-		subtotal := float64(quantity) * unitPrice
-		totalAmount += subtotal
+	for i := 1; i <= 20; i++ {
+		code := fmt.Sprintf("TP%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			product := productDetailMap[prodID]
+			// Vary quantities based on product type
+			quantity := 200
+			var expiryDate *time.Time
+			if i <= 8 {
+				// Dry goods - longer shelf life, higher quantity
+				quantity = 250
+				e := initialDate.AddDate(0, 12, 0) // 12 months
+				expiryDate = &e
+			} else if i <= 13 {
+				// Fresh produce - short shelf life
+				quantity = 150
+				e := initialDate.AddDate(0, 0, 7) // 7 days
+				expiryDate = &e
+			} else if i <= 17 {
+				// Meat/seafood - frozen
+				quantity = 100
+				e := initialDate.AddDate(0, 3, 0) // 3 months
+				expiryDate = &e
+			} else {
+				// Dairy/eggs
+				quantity = 300
+				e := initialDate.AddDate(0, 0, 30) // 30 days
+				expiryDate = &e
+			}
+			unitPrice := product.SellingPrice * 0.5 // Higher margin for food
+			subtotal := float64(quantity) * unitPrice
+			totalAmount += subtotal
 
-		detail := models.PurchaseOrderDetail{
-			OrderID:   order4.OrderID,
-			ProductID: prodID,
-			Quantity:  quantity,
-			UnitPrice: unitPrice,
-			Subtotal:  subtotal,
-		}
-		orderDetails = append(orderDetails, detail)
+			detail := models.PurchaseOrderDetail{
+				OrderID:   order4.OrderID,
+				ProductID: prodID,
+				Quantity:  quantity,
+				UnitPrice: unitPrice,
+				Subtotal:  subtotal,
+			}
+			orderDetails = append(orderDetails, detail)
 
-		inventory := models.WarehouseInventory{
-			WarehouseID: mainWarehouseID,
-			ProductID:   prodID,
-			BatchCode:   fmt.Sprintf("%s-2025-08-04", code),
-			Quantity:    quantity,
-			ImportDate:  *order4.DeliveryDate,
-			ExpiryDate:  &expiryDate,
-			ImportPrice: unitPrice,
+			inventory := models.WarehouseInventory{
+				WarehouseID: mainWarehouseID,
+				ProductID:   prodID,
+				BatchCode:   fmt.Sprintf("%s-2025-08-04", code),
+				Quantity:    quantity,
+				ImportDate:  *order4.DeliveryDate,
+				ExpiryDate:  expiryDate,
+				ImportPrice: unitPrice,
+			}
+			warehouseInventory = append(warehouseInventory, inventory)
 		}
-		warehouseInventory = append(warehouseInventory, inventory)
 	}
 	tx.Model(&order4).Update("total_amount", totalAmount)
 	orders = append(orders, order4)
@@ -1006,51 +1172,155 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		return err
 	}
 
-	// Add beverages
-	beverageProducts := []string{"DU001", "DU002", "DU003", "DU004", "DU005"}
+	// Add ALL beverages (DU001-DU015)
 	totalAmount = 0.0
-	for _, code := range beverageProducts {
-		prodID := productMap[code]
-		product := productDetailMap[prodID]
-		quantity := 300 // High demand for beverages
-		unitPrice := product.SellingPrice * 0.55
-		subtotal := float64(quantity) * unitPrice
-		totalAmount += subtotal
+	for i := 1; i <= 15; i++ {
+		code := fmt.Sprintf("DU%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			product := productDetailMap[prodID]
+			quantity := 300 // High demand for beverages
+			var expiry *time.Time
+			if i <= 3 {
+				// Alcoholic beverages - longer shelf life
+				quantity = 200
+				e := initialDate.AddDate(2, 0, 0) // 2 years
+				expiry = &e
+			} else if i <= 11 {
+				// Soft drinks, juices
+				quantity = 350
+				e := initialDate.AddDate(0, 6, 0) // 6 months
+				expiry = &e
+			} else {
+				// Coffee, tea - dry products
+				quantity = 250
+				e := initialDate.AddDate(1, 0, 0) // 1 year
+				expiry = &e
+			}
+			unitPrice := product.SellingPrice * 0.55
+			subtotal := float64(quantity) * unitPrice
+			totalAmount += subtotal
 
-		detail := models.PurchaseOrderDetail{
-			OrderID:   order5.OrderID,
-			ProductID: prodID,
-			Quantity:  quantity,
-			UnitPrice: unitPrice,
-			Subtotal:  subtotal,
-		}
-		orderDetails = append(orderDetails, detail)
+			detail := models.PurchaseOrderDetail{
+				OrderID:   order5.OrderID,
+				ProductID: prodID,
+				Quantity:  quantity,
+				UnitPrice: unitPrice,
+				Subtotal:  subtotal,
+			}
+			orderDetails = append(orderDetails, detail)
 
-		var expiry *time.Time
-		if strings.Contains(product.ProductName, "milk") || strings.Contains(product.ProductName, "juice") {
-			e := initialDate.AddDate(0, 3, 0) // 3 months for perishables
-			expiry = &e
+			inventory := models.WarehouseInventory{
+				WarehouseID: mainWarehouseID,
+				ProductID:   prodID,
+				BatchCode:   fmt.Sprintf("%s-2025-08-05", code),
+				Quantity:    quantity,
+				ImportDate:  *order5.DeliveryDate,
+				ExpiryDate:  expiry,
+				ImportPrice: unitPrice,
+			}
+			warehouseInventory = append(warehouseInventory, inventory)
 		}
-
-		inventory := models.WarehouseInventory{
-			WarehouseID: mainWarehouseID,
-			ProductID:   prodID,
-			BatchCode:   fmt.Sprintf("%s-2025-08-05", code),
-			Quantity:    quantity,
-			ImportDate:  *order5.DeliveryDate,
-			ExpiryDate:  expiry,
-			ImportPrice: unitPrice,
-		}
-		warehouseInventory = append(warehouseInventory, inventory)
 	}
 	tx.Model(&order5).Update("total_amount", totalAmount)
 	orders = append(orders, order5)
 
+	// Order 6: Cosmetics and Fashion (Aug 14)
+	order6 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-006",
+		SupplierID:   supplierMap["SUP001"], // Can handle cosmetics/fashion too
+		EmployeeID:   employeeMap["EMP005"],
+		OrderDate:    initialDate.AddDate(0, 0, 4),
+		DeliveryDate: timePtr(initialDate.AddDate(0, 0, 5)),
+		TotalAmount:  0,
+		Status:       models.OrderReceived,
+		Notes:        strPtr("Initial stock - Cosmetics & Fashion"),
+	}
+	if err := tx.Create(&order6).Error; err != nil {
+		return err
+	}
+
+	// Add cosmetics (MP001-MP010)
+	totalAmount = 0.0
+	for i := 1; i <= 10; i++ {
+		code := fmt.Sprintf("MP%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			product := productDetailMap[prodID]
+			quantity := 150
+			if i <= 4 {
+				quantity = 120 // Skincare - moderate stock
+			} else if i <= 7 {
+				quantity = 100 // Makeup - lower stock
+			} else {
+				quantity = 200 // Personal hygiene - higher turnover
+			}
+			unitPrice := product.SellingPrice * 0.5
+			subtotal := float64(quantity) * unitPrice
+			totalAmount += subtotal
+
+			detail := models.PurchaseOrderDetail{
+				OrderID:   order6.OrderID,
+				ProductID: prodID,
+				Quantity:  quantity,
+				UnitPrice: unitPrice,
+				Subtotal:  subtotal,
+			}
+			orderDetails = append(orderDetails, detail)
+
+			inventory := models.WarehouseInventory{
+				WarehouseID: mainWarehouseID,
+				ProductID:   prodID,
+				BatchCode:   fmt.Sprintf("%s-2025-08-06", code),
+				Quantity:    quantity,
+				ImportDate:  *order6.DeliveryDate,
+				ImportPrice: unitPrice,
+			}
+			warehouseInventory = append(warehouseInventory, inventory)
+		}
+	}
+
+	// Add fashion items (TT001-TT007)
+	for i := 1; i <= 7; i++ {
+		code := fmt.Sprintf("TT%03d", i)
+		if prodID, exists := productMap[code]; exists {
+			product := productDetailMap[prodID]
+			quantity := 80
+			if i <= 4 {
+				quantity = 60 // Clothing - lower stock due to sizes
+			} else {
+				quantity = 100 // Accessories
+			}
+			unitPrice := product.SellingPrice * 0.4 // Fashion has higher margin
+			subtotal := float64(quantity) * unitPrice
+			totalAmount += subtotal
+
+			detail := models.PurchaseOrderDetail{
+				OrderID:   order6.OrderID,
+				ProductID: prodID,
+				Quantity:  quantity,
+				UnitPrice: unitPrice,
+				Subtotal:  subtotal,
+			}
+			orderDetails = append(orderDetails, detail)
+
+			inventory := models.WarehouseInventory{
+				WarehouseID: mainWarehouseID,
+				ProductID:   prodID,
+				BatchCode:   fmt.Sprintf("%s-2025-08-06", code),
+				Quantity:    quantity,
+				ImportDate:  *order6.DeliveryDate,
+				ImportPrice: unitPrice,
+			}
+			warehouseInventory = append(warehouseInventory, inventory)
+		}
+	}
+	tx.Model(&order6).Update("total_amount", totalAmount)
+	orders = append(orders, order6)
+
 	// Restock orders based on sales patterns (weekly restocks)
 	// Week 1 restock - Aug 22
 	restockDate1 := initialDate.AddDate(0, 0, 12)
-	order6 := models.PurchaseOrder{
-		OrderNo:      "PO-2025-08-006",
+	order7 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-007",
 		SupplierID:   supplierMap["SUP001"],
 		EmployeeID:   employeeMap["EMP005"],
 		OrderDate:    restockDate1,
@@ -1059,7 +1329,7 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		Status:       models.OrderReceived,
 		Notes:        strPtr("Weekly restock - Fast moving items"),
 	}
-	if err := tx.Create(&order6).Error; err != nil {
+	if err := tx.Create(&order7).Error; err != nil {
 		return err
 	}
 
@@ -1080,7 +1350,7 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		totalAmount += subtotal
 
 		detail := models.PurchaseOrderDetail{
-			OrderID:   order6.OrderID,
+			OrderID:   order7.OrderID,
 			ProductID: prodID,
 			Quantity:  item.quantity,
 			UnitPrice: unitPrice,
@@ -1105,13 +1375,13 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		}
 		warehouseInventory = append(warehouseInventory, inventory)
 	}
-	tx.Model(&order6).Update("total_amount", totalAmount)
-	orders = append(orders, order6)
+	tx.Model(&order7).Update("total_amount", totalAmount)
+	orders = append(orders, order7)
 
 	// Week 2 restock - Aug 29
 	restockDate2 := initialDate.AddDate(0, 0, 19)
-	order7 := models.PurchaseOrder{
-		OrderNo:      "PO-2025-08-007",
+	order8 := models.PurchaseOrder{
+		OrderNo:      "PO-2025-08-008",
 		SupplierID:   supplierMap["SUP002"],
 		EmployeeID:   employeeMap["EMP005"],
 		OrderDate:    restockDate2,
@@ -1120,7 +1390,7 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		Status:       models.OrderReceived,
 		Notes:        strPtr("Weekly restock - Electronics"),
 	}
-	if err := tx.Create(&order7).Error; err != nil {
+	if err := tx.Create(&order8).Error; err != nil {
 		return err
 	}
 
@@ -1140,7 +1410,7 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		totalAmount += subtotal
 
 		detail := models.PurchaseOrderDetail{
-			OrderID:   order7.OrderID,
+			OrderID:   order8.OrderID,
 			ProductID: prodID,
 			Quantity:  item.quantity,
 			UnitPrice: unitPrice,
@@ -1153,17 +1423,17 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 			ProductID:   prodID,
 			BatchCode:   fmt.Sprintf("%s-2025-08-R2", item.code),
 			Quantity:    item.quantity,
-			ImportDate:  *order7.DeliveryDate,
+			ImportDate:  *order8.DeliveryDate,
 			ImportPrice: unitPrice,
 		}
 		warehouseInventory = append(warehouseInventory, inventory)
 	}
-	tx.Model(&order7).Update("total_amount", totalAmount)
-	orders = append(orders, order7)
+	tx.Model(&order8).Update("total_amount", totalAmount)
+	orders = append(orders, order8)
 
 	// Week 3 restock - Sep 5
 	restockDate3 := initialDate.AddDate(0, 0, 26)
-	order8 := models.PurchaseOrder{
+	order9 := models.PurchaseOrder{
 		OrderNo:      "PO-2025-09-001",
 		SupplierID:   supplierMap["SUP004"],
 		EmployeeID:   employeeMap["EMP005"],
@@ -1173,7 +1443,7 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		Status:       models.OrderReceived,
 		Notes:        strPtr("Monthly restock - Home goods"),
 	}
-	if err := tx.Create(&order8).Error; err != nil {
+	if err := tx.Create(&order9).Error; err != nil {
 		return err
 	}
 
@@ -1193,7 +1463,7 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 		totalAmount += subtotal
 
 		detail := models.PurchaseOrderDetail{
-			OrderID:   order8.OrderID,
+			OrderID:   order9.OrderID,
 			ProductID: prodID,
 			Quantity:  item.quantity,
 			UnitPrice: unitPrice,
@@ -1206,13 +1476,13 @@ func seedPurchaseOrders(tx *gorm.DB, employeeMap map[string]uint, supplierMap ma
 			ProductID:   prodID,
 			BatchCode:   fmt.Sprintf("%s-2025-09-R1", item.code),
 			Quantity:    item.quantity,
-			ImportDate:  *order8.DeliveryDate,
+			ImportDate:  *order9.DeliveryDate,
 			ImportPrice: unitPrice,
 		}
 		warehouseInventory = append(warehouseInventory, inventory)
 	}
-	tx.Model(&order8).Update("total_amount", totalAmount)
-	orders = append(orders, order8)
+	tx.Model(&order9).Update("total_amount", totalAmount)
+	orders = append(orders, order9)
 
 	// Create all order details
 	if err := tx.Create(&orderDetails).Error; err != nil {
@@ -1259,35 +1529,67 @@ func seedStockTransfers(tx *gorm.DB, warehouseMap map[string]uint, shelfMap map[
 	initialTransferDate, _ := time.Parse("2006-01-02 15:04:05", "2025-08-14 10:00:00")
 
 	// Transfer initial stock to shelves for store opening
+	// We'll transfer products based on shelf layouts and available inventory
 	initialTransfers := []struct {
 		productCode string
 		quantity    int
 		notes       string
-	}{
-		// Office supplies
-		{"VPP001", 100, "Initial shelf stock - Pens"},
-		{"VPP002", 80, "Initial shelf stock - Notebooks"},
-		{"VPP003", 120, "Initial shelf stock - Paper"},
+	}{}
 
-		// Home goods
-		{"GD001", 20, "Initial shelf stock - Electric Kettle"},
-		{"GD002", 15, "Initial shelf stock - Rice Cooker"},
-		{"GD003", 40, "Initial shelf stock - Hangers"},
+	// Build transfer list based on available warehouse inventory and shelf layouts
+	for prodID, invList := range warehouseStock {
+		if len(invList) == 0 {
+			continue
+		}
 
-		// Electronics
-		{"DT001", 30, "Initial shelf stock - Headphones"},
-		{"DT002", 25, "Initial shelf stock - Mouse"},
-		{"DT003", 50, "Initial shelf stock - USB Cable"},
+		// Check if this product has a shelf layout
+		shelfID, hasShelf := productShelfMap[prodID]
+		if !hasShelf {
+			continue
+		}
 
-		// Food
-		{"TP001", 50, "Initial shelf stock - Cooking Oil"},
-		{"TP002", 100, "Initial shelf stock - Rice"},
-		{"TP003", 80, "Initial shelf stock - Fish Sauce"},
+		// Find product code
+		var productCode string
+		for code, id := range productMap {
+			if id == prodID {
+				productCode = code
+				break
+			}
+		}
 
-		// Beverages
-		{"DU001", 60, "Initial shelf stock - Coffee"},
-		{"DU002", 50, "Initial shelf stock - Fresh Milk"},
-		{"DU003", 55, "Initial shelf stock - Beer"},
+		if productCode == "" {
+			continue
+		}
+
+		// Get shelf layout to determine initial transfer quantity
+		var shelfLayout models.ShelfLayout
+		tx.Where("shelf_id = ? AND product_id = ?", shelfID, prodID).First(&shelfLayout)
+
+		// Calculate initial transfer quantity (50-70% of max capacity)
+		initialQty := shelfLayout.MaxQuantity * 6 / 10
+
+		// Check available inventory
+		totalAvailable := 0
+		for _, inv := range invList {
+			totalAvailable += inv.Quantity
+		}
+
+		if totalAvailable > 0 {
+			if initialQty > totalAvailable {
+				initialQty = totalAvailable / 2 // Transfer half of available
+			}
+			if initialQty > 0 {
+				initialTransfers = append(initialTransfers, struct {
+					productCode string
+					quantity    int
+					notes       string
+				}{
+					productCode: productCode,
+					quantity:    initialQty,
+					notes:       fmt.Sprintf("Initial shelf stock - %s", productCode),
+				})
+			}
+		}
 	}
 
 	for _, item := range initialTransfers {
@@ -1299,38 +1601,71 @@ func seedStockTransfers(tx *gorm.DB, warehouseMap map[string]uint, shelfMap map[
 
 		// Check if we have inventory for this product
 		if invs, ok := warehouseStock[productID]; ok && len(invs) > 0 {
-			// Use the first available batch
-			batchCode := invs[0].BatchCode
-
-			transfer := models.StockTransfer{
-				TransferCode:    fmt.Sprintf("ST-2025-08-%03d", transferNo),
-				ProductID:       productID,
-				FromWarehouseID: mainWarehouseID,
-				ToShelfID:       shelfID,
-				Quantity:        item.quantity,
-				TransferDate:    initialTransferDate,
-				EmployeeID:      employeeMap["EMP005"],
-				BatchCode:       strPtr(batchCode),
-				Notes:           strPtr(item.notes),
+			// Find batch with sufficient quantity
+			var selectedBatch string
+			for _, inv := range invs {
+				// Get current quantity from DB
+				var currentInv models.WarehouseInventory
+				tx.Where("warehouse_id = ? AND product_id = ? AND batch_code = ?",
+					mainWarehouseID, productID, inv.BatchCode).First(&currentInv)
+				if currentInv.Quantity >= item.quantity {
+					selectedBatch = inv.BatchCode
+					break
+				}
 			}
-			transfers = append(transfers, transfer)
-			transferNo++
 
-			// Update warehouse inventory (decrease)
-			tx.Model(&models.WarehouseInventory{}).
-				Where("warehouse_id = ? AND product_id = ? AND batch_code = ?", mainWarehouseID, productID, batchCode).
-				Update("quantity", gorm.Expr("quantity - ?", item.quantity))
+			if selectedBatch == "" {
+				// If no single batch has enough, use first available batch with partial quantity
+				for _, inv := range invs {
+					var currentInv models.WarehouseInventory
+					tx.Where("warehouse_id = ? AND product_id = ? AND batch_code = ?",
+						mainWarehouseID, productID, inv.BatchCode).First(&currentInv)
+					if currentInv.Quantity > 0 {
+						selectedBatch = inv.BatchCode
+						if item.quantity > currentInv.Quantity {
+							item.quantity = currentInv.Quantity
+						}
+						break
+					}
+				}
+			}
+
+			if selectedBatch != "" && item.quantity > 0 {
+				transfer := models.StockTransfer{
+					TransferCode:    fmt.Sprintf("ST-2025-08-%03d", transferNo),
+					ProductID:       productID,
+					FromWarehouseID: mainWarehouseID,
+					ToShelfID:       shelfID,
+					Quantity:        item.quantity,
+					TransferDate:    initialTransferDate,
+					EmployeeID:      employeeMap["EMP005"],
+					BatchCode:       strPtr(selectedBatch),
+					Notes:           strPtr(item.notes),
+				}
+				transfers = append(transfers, transfer)
+				transferNo++
+
+				// Update warehouse inventory (decrease)
+				tx.Model(&models.WarehouseInventory{}).
+					Where("warehouse_id = ? AND product_id = ? AND batch_code = ?", mainWarehouseID, productID, selectedBatch).
+					Update("quantity", gorm.Expr("quantity - ?", item.quantity))
+			}
 		}
 	}
 
 	// Weekly restocking transfers based on sales patterns
-	// Week 1 restock (Aug 22)
+	// Week 1 restock (Aug 22) - Focus on fast-moving items
 	week1Date, _ := time.Parse("2006-01-02 15:04:05", "2025-08-22 14:00:00")
 	week1Restocks := []struct {
 		productCode string
 		quantity    int
 	}{
-		{"VPP001", 50}, {"VPP002", 40}, {"TP001", 30}, {"TP002", 50}, {"DU001", 40},
+		// Office supplies
+		{"VPP001", 50}, {"VPP002", 40}, {"VPP003", 30}, {"VPP004", 25}, {"VPP005", 35},
+		// Food products
+		{"TP001", 30}, {"TP002", 50}, {"TP003", 40}, {"TP004", 60}, {"TP005", 45},
+		// Beverages
+		{"DU001", 40}, {"DU002", 35}, {"DU003", 30}, {"DU004", 50}, {"DU005", 45},
 	}
 
 	for _, item := range week1Restocks {
@@ -1363,13 +1698,16 @@ func seedStockTransfers(tx *gorm.DB, warehouseMap map[string]uint, shelfMap map[
 		}
 	}
 
-	// Week 2 restock (Aug 29)
+	// Week 2 restock (Aug 29) - Electronics and home goods
 	week2Date, _ := time.Parse("2006-01-02 15:04:05", "2025-08-29 09:00:00")
 	week2Restocks := []struct {
 		productCode string
 		quantity    int
 	}{
-		{"DT001", 20}, {"DT002", 15}, {"DT003", 30}, {"GD001", 10}, {"GD002", 8},
+		// Electronics
+		{"DT001", 20}, {"DT002", 15}, {"DT003", 30}, {"DT004", 25}, {"DT005", 20},
+		// Home goods
+		{"GD001", 10}, {"GD002", 8}, {"GD003", 15}, {"DB001", 12}, {"DB002", 10},
 	}
 
 	for _, item := range week2Restocks {
@@ -1402,13 +1740,18 @@ func seedStockTransfers(tx *gorm.DB, warehouseMap map[string]uint, shelfMap map[
 		}
 	}
 
-	// Week 3 restock (Sep 5)
+	// Week 3 restock (Sep 5) - Mixed categories for month-end push
 	week3Date, _ := time.Parse("2006-01-02 15:04:05", "2025-09-05 10:00:00")
 	week3Restocks := []struct {
 		productCode string
 		quantity    int
 	}{
-		{"TP001", 30}, {"TP002", 20}, {"DU001", 50}, {"DU002", 40}, {"VPP001", 60},
+		// Food restock
+		{"TP001", 30}, {"TP002", 20}, {"TP006", 25}, {"TP007", 30}, {"TP008", 40},
+		// Beverages restock
+		{"DU001", 50}, {"DU002", 40}, {"DU006", 35}, {"DU007", 30}, {"DU008", 45},
+		// Office supplies restock
+		{"VPP001", 60}, {"VPP006", 20}, {"VPP007", 30}, {"VPP008", 25}, {"VPP009", 35},
 	}
 
 	for _, item := range week3Restocks {
