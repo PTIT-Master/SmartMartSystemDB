@@ -19,12 +19,13 @@ func AllModels() []interface{} {
 		&Customer{},     // depends on: MembershipLevel
 
 		// 3. Tables with multiple dependencies
-		&WarehouseInventory{}, // depends on: Warehouse, Product
-		&ShelfLayout{},        // depends on: DisplayShelf, Product
-		&ShelfInventory{},     // depends on: DisplayShelf, Product
-		&EmployeeWorkHour{},   // depends on: Employee
-		&SalesInvoice{},       // depends on: Customer, Employee
-		&PurchaseOrder{},      // depends on: Supplier, Employee
+		&WarehouseInventory{},  // depends on: Warehouse, Product
+		&ShelfLayout{},         // depends on: DisplayShelf, Product
+		&ShelfInventory{},      // depends on: DisplayShelf, Product
+		&ShelfBatchInventory{}, // depends on: DisplayShelf, Product (batch tracking)
+		&EmployeeWorkHour{},    // depends on: Employee
+		&SalesInvoice{},        // depends on: Customer, Employee
+		&PurchaseOrder{},       // depends on: Supplier, Employee
 
 		// 4. Detail/junction tables
 		&SalesInvoiceDetail{},  // depends on: SalesInvoice, Product
