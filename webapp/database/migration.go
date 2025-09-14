@@ -2,7 +2,10 @@ package database
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/supermarket/models"
@@ -65,6 +68,12 @@ func AutoMigrate(db *gorm.DB) error {
 	log.Println("Creating indexes...")
 	if err := CreateIndexes(db); err != nil {
 		log.Printf("Warning: Some indexes could not be created: %v", err)
+	}
+
+	// Create triggers
+	log.Println("Creating database triggers...")
+	if err := CreateTriggers(db); err != nil {
+		log.Printf("Warning: Some triggers could not be created: %v", err)
 	}
 
 	log.Println("GORM AutoMigrate completed successfully")
@@ -290,4 +299,52 @@ func CreateIndexes(db *gorm.DB) error {
 // SyncIndexes is now deprecated - use CreateIndexes instead
 func SyncIndexes(db *gorm.DB) error {
 	return CreateIndexes(db)
+}
+
+// CreateTriggers creates all database triggers for the supermarket system
+func CreateTriggers(db *gorm.DB) error {
+	triggerFiles := []string{
+		"triggers.sql",
+		"create_triggers.sql",
+	}
+
+	successCount := 0
+	for _, filename := range triggerFiles {
+		if err := executeSQLFile(db, filename); err != nil {
+			log.Printf("  ⚠ Failed to execute %s: %v", filename, err)
+		} else {
+			log.Printf("  ✓ Executed trigger file: %s", filename)
+			successCount++
+		}
+	}
+
+	if successCount > 0 {
+		log.Printf("Successfully created triggers from %d files", successCount)
+	}
+
+	return nil
+}
+
+// executeSQLFile executes a SQL file in the database directory
+func executeSQLFile(db *gorm.DB, filename string) error {
+	// Get the directory of the current file (migration.go)
+	_, currentFile, _, _ := runtime.Caller(0)
+	dbDir := filepath.Dir(currentFile)
+	sqlFilePath := filepath.Join(dbDir, filename)
+
+	// Read the SQL file
+	sqlBytes, err := ioutil.ReadFile(sqlFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read SQL file %s: %w", filename, err)
+	}
+
+	sqlContent := string(sqlBytes)
+
+	// For PostgreSQL files with functions/triggers, execute the entire content at once
+	// This avoids issues with dollar-quoted strings being split incorrectly
+	if err := db.Exec(sqlContent).Error; err != nil {
+		return fmt.Errorf("failed to execute SQL file %s: %w", filename, err)
+	}
+
+	return nil
 }

@@ -169,8 +169,12 @@ func showPostMigrationInfo() {
 3. Test the connection:
    go run test_connection.go
 
-Note: Some advanced features like triggers and stored procedures 
-are not created by GORM AutoMigrate. For full functionality,
-consider running the SQL scripts in ../sql/ directory.
+Note: Database triggers for validation and data processing are 
+automatically created during migration. These triggers handle:
+- Price validation, inventory management, customer metrics
+- Invoice calculations, work hours, expiry discounts
+- Audit trails and timestamp management
+
+For additional SQL functions, consider running scripts in ../sql/ directory.
 `)
 }
