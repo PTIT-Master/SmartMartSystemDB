@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict XdhcuFtwTsPTSdlJwNFpUqldOGkxh3kvYJ0kCllg5K8jGuHIfJXVhxrtsbdsIhO
+\restrict 4l4NC3aHLHyUDWZF79TgePa5sCmDSWnR3p8iq0TqztngKjXMdzYs3AaiI0kauIU
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -2604,5 +2604,5 @@ ALTER TABLE ONLY supermarket.warehouse_inventory
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XdhcuFtwTsPTSdlJwNFpUqldOGkxh3kvYJ0kCllg5K8jGuHIfJXVhxrtsbdsIhO
+\unrestrict 4l4NC3aHLHyUDWZF79TgePa5sCmDSWnR3p8iq0TqztngKjXMdzYs3AaiI0kauIU
 
