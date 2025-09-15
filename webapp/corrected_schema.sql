@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 5fbbGUhRaSXPhAtNRvLOJKeQDk4LYIxQ7ucjCEzsbj0x2bRSYAAVLGBwjoIpGog
+\restrict tFsuJNYe9lZ0yWbYvrvb46obi2EtoN9T8y8ktqBwT5dJxetMiPVm0To7et03yQS
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -27,6 +27,588 @@ CREATE SCHEMA supermarket;
 
 
 ALTER SCHEMA supermarket OWNER TO postgres;
+
+--
+-- Name: apply_expiry_discounts(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.apply_expiry_discounts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    days_until_expiry INTEGER;
+    discount_rule RECORD;
+    original_price NUMERIC(12,2);
+    new_price NUMERIC(12,2);
+    import_price_val NUMERIC(12,2);
+BEGIN
+    -- Only process if expiry_date is being set or updated
+    IF NEW.expiry_date IS NOT NULL THEN
+        days_until_expiry := NEW.expiry_date - CURRENT_DATE;
+        
+        -- Get the product's current selling price
+        SELECT selling_price INTO original_price
+        FROM products 
+        WHERE product_id = NEW.product_id;
+        
+        -- Find applicable discount rule
+        SELECT dr.discount_percentage INTO discount_rule
+        FROM discount_rules dr
+        INNER JOIN products p ON p.category_id = dr.category_id
+        WHERE p.product_id = NEW.product_id
+          AND dr.days_before_expiry >= days_until_expiry
+          AND dr.is_active = true
+        ORDER BY dr.days_before_expiry ASC
+        LIMIT 1;
+        
+        -- Apply discount if rule found
+        IF FOUND AND discount_rule IS NOT NULL THEN
+            new_price := original_price * (1 - discount_rule.discount_percentage / 100);
+            
+            -- Get import price for validation
+            SELECT import_price INTO import_price_val
+            FROM products 
+            WHERE product_id = NEW.product_id;
+            
+            -- Ensure discounted price is still higher than import price
+            -- Set minimum price to be 110% of import price to maintain profitability
+            IF new_price <= import_price_val THEN
+                new_price := import_price_val * 1.1;
+            END IF;
+            
+            UPDATE products 
+            SET selling_price = new_price,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE product_id = NEW.product_id;
+            
+
+            RAISE NOTICE '%', format('Applied %s%% discount to product %s due to expiry. New price: %s', 
+                         discount_rule.discount_percentage, NEW.product_id, new_price);
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.apply_expiry_discounts() OWNER TO postgres;
+
+--
+-- Name: calculate_detail_subtotal(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.calculate_detail_subtotal() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Calculate discount amount
+    NEW.discount_amount := NEW.unit_price * NEW.quantity * (NEW.discount_percentage / 100);
+    
+    -- Calculate subtotal
+    NEW.subtotal := (NEW.unit_price * NEW.quantity) - NEW.discount_amount;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.calculate_detail_subtotal() OWNER TO postgres;
+
+--
+-- Name: calculate_expiry_date(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.calculate_expiry_date() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Calculate expiry date if not provided and product has shelf life
+    IF NEW.expiry_date IS NULL THEN
+        SELECT NEW.import_date + (p.shelf_life_days || ' days')::INTERVAL INTO NEW.expiry_date
+        FROM products p
+        WHERE p.product_id = NEW.product_id AND p.shelf_life_days IS NOT NULL;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.calculate_expiry_date() OWNER TO postgres;
+
+--
+-- Name: calculate_invoice_totals(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.calculate_invoice_totals() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    invoice_subtotal NUMERIC(12,2) := 0;
+    invoice_discount NUMERIC(12,2) := 0;
+    invoice_tax NUMERIC(12,2) := 0;
+    invoice_total NUMERIC(12,2) := 0;
+BEGIN
+    -- Calculate subtotal and total discount from all details
+    SELECT 
+        COALESCE(SUM(subtotal), 0),
+        COALESCE(SUM(discount_amount), 0)
+    INTO invoice_subtotal, invoice_discount
+    FROM sales_invoice_details 
+    WHERE invoice_id = NEW.invoice_id;
+    
+    -- Calculate tax (assuming 10% VAT, adjust as needed)
+    invoice_tax := (invoice_subtotal - invoice_discount) * 0.10;
+    
+    -- Calculate final total
+    invoice_total := invoice_subtotal - invoice_discount + invoice_tax;
+    
+    -- Update the invoice
+    UPDATE sales_invoices 
+    SET subtotal = invoice_subtotal,
+        discount_amount = invoice_discount,
+        tax_amount = invoice_tax,
+        total_amount = invoice_total
+    WHERE invoice_id = NEW.invoice_id;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.calculate_invoice_totals() OWNER TO postgres;
+
+--
+-- Name: calculate_purchase_detail_subtotal(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.calculate_purchase_detail_subtotal() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.subtotal := NEW.unit_price * NEW.quantity;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.calculate_purchase_detail_subtotal() OWNER TO postgres;
+
+--
+-- Name: calculate_work_hours(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.calculate_work_hours() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL THEN
+        NEW.total_hours := EXTRACT(EPOCH FROM (NEW.check_out_time - NEW.check_in_time)) / 3600;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.calculate_work_hours() OWNER TO postgres;
+
+--
+-- Name: check_low_stock(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.check_low_stock() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    threshold INTEGER;
+    product_name VARCHAR(200);
+BEGIN
+    -- Get product threshold and name
+    SELECT p.low_stock_threshold, p.product_name 
+    INTO threshold, product_name
+    FROM products p 
+    WHERE p.product_id = NEW.product_id;
+    
+    -- Check if stock is now below threshold
+    IF NEW.current_quantity <= threshold AND 
+       (OLD IS NULL OR OLD.current_quantity > threshold) THEN
+        
+        -- Here you could insert into a notifications table or log table
+        RAISE NOTICE '%', format('LOW STOCK ALERT: Product "%s" (ID: %s) is at %s units (threshold: %s)', 
+                     product_name, NEW.product_id, NEW.current_quantity, threshold);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.check_low_stock() OWNER TO postgres;
+
+--
+-- Name: check_membership_upgrade(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.check_membership_upgrade() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    current_level_id INTEGER;
+    new_level_id INTEGER;
+    new_level_name VARCHAR(50);
+BEGIN
+    -- Get customer's current membership level
+    SELECT membership_level_id INTO current_level_id
+    FROM customers WHERE customer_id = NEW.customer_id;
+    
+    -- Find the highest membership level this customer qualifies for
+    SELECT level_id, level_name INTO new_level_id, new_level_name
+    FROM membership_levels 
+    WHERE min_spending <= NEW.total_spending
+    ORDER BY min_spending DESC
+    LIMIT 1;
+    
+    -- Update membership if eligible for upgrade
+    IF new_level_id != current_level_id OR current_level_id IS NULL THEN
+        UPDATE customers 
+        SET membership_level_id = new_level_id,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE customer_id = NEW.customer_id;
+        
+        RAISE NOTICE '%', format('Customer %s upgraded to membership level: %s', NEW.customer_id, new_level_name);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.check_membership_upgrade() OWNER TO postgres;
+
+--
+-- Name: process_sales_stock_deduction(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.process_sales_stock_deduction() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    available_qty INTEGER;
+BEGIN
+    -- Check shelf stock availability
+    SELECT si.current_quantity INTO available_qty
+    FROM shelf_inventory si
+    INNER JOIN sales_invoices inv ON inv.invoice_id = NEW.invoice_id
+    INNER JOIN products p ON p.product_id = NEW.product_id
+    WHERE si.product_id = NEW.product_id;
+    
+    IF NOT FOUND OR available_qty < NEW.quantity THEN
+        RAISE EXCEPTION '%', format('Insufficient shelf stock for product %s. Available: %s, Requested: %s', 
+                        NEW.product_id, COALESCE(available_qty, 0), NEW.quantity);
+    END IF;
+    
+    -- Deduct from shelf inventory
+    UPDATE shelf_inventory 
+    SET current_quantity = current_quantity - NEW.quantity,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE product_id = NEW.product_id 
+      AND current_quantity >= NEW.quantity;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.process_sales_stock_deduction() OWNER TO postgres;
+
+--
+-- Name: process_stock_transfer(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.process_stock_transfer() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Deduct from warehouse inventory
+    UPDATE warehouse_inventory 
+    SET quantity = quantity - NEW.quantity,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE warehouse_id = NEW.from_warehouse_id 
+      AND product_id = NEW.product_id 
+      AND quantity >= NEW.quantity;
+    
+    -- Check if update was successful
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Failed to deduct stock from warehouse. Check stock availability.';
+    END IF;
+    
+    -- Update or insert shelf inventory
+    INSERT INTO shelf_inventory (shelf_id, product_id, current_quantity, last_restocked, updated_at)
+    VALUES (NEW.to_shelf_id, NEW.product_id, NEW.quantity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT (shelf_id, product_id) 
+    DO UPDATE SET 
+        current_quantity = shelf_inventory.current_quantity + NEW.quantity,
+        last_restocked = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.process_stock_transfer() OWNER TO postgres;
+
+--
+-- Name: set_created_timestamp(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.set_created_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.created_at = CURRENT_TIMESTAMP;
+    IF TG_OP = 'UPDATE' THEN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.set_created_timestamp() OWNER TO postgres;
+
+--
+-- Name: update_customer_metrics(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.update_customer_metrics() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    points_earned INTEGER;
+    multiplier NUMERIC(3,2) := 1.0;
+BEGIN
+    IF NEW.customer_id IS NOT NULL THEN
+        -- Get points multiplier if customer has membership
+        SELECT COALESCE(ml.points_multiplier, 1.0) INTO multiplier
+        FROM customers c
+        LEFT JOIN membership_levels ml ON c.membership_level_id = ml.level_id
+        WHERE c.customer_id = NEW.customer_id;
+        
+        -- Calculate points earned (1 point per dollar spent, multiplied by membership bonus)
+        points_earned := FLOOR(NEW.total_amount * multiplier);
+        
+        -- Update customer metrics
+        UPDATE customers 
+        SET total_spending = total_spending + NEW.total_amount,
+            loyalty_points = loyalty_points + points_earned,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE customer_id = NEW.customer_id;
+        
+        -- Update points earned in the invoice
+        NEW.points_earned := points_earned;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.update_customer_metrics() OWNER TO postgres;
+
+--
+-- Name: update_purchase_order_total(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.update_purchase_order_total() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    order_total NUMERIC(12,2);
+BEGIN
+    -- Calculate total from all details
+    SELECT COALESCE(SUM(subtotal), 0) INTO order_total
+    FROM purchase_order_details 
+    WHERE order_id = COALESCE(NEW.order_id, OLD.order_id);
+    
+    -- Update the purchase order
+    UPDATE purchase_orders 
+    SET total_amount = order_total,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE order_id = COALESCE(NEW.order_id, OLD.order_id);
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.update_purchase_order_total() OWNER TO postgres;
+
+--
+-- Name: update_timestamp(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.update_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.update_timestamp() OWNER TO postgres;
+
+--
+-- Name: validate_product_price(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.validate_product_price() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.selling_price <= NEW.import_price THEN
+        RAISE EXCEPTION '%', format('Selling price (%s) must be higher than import price (%s)', 
+                        NEW.selling_price, NEW.import_price);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.validate_product_price() OWNER TO postgres;
+
+--
+-- Name: validate_shelf_capacity(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.validate_shelf_capacity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    max_qty INTEGER;
+BEGIN
+    -- Skip validation if this is from stock transfer processing
+    -- (capacity is already validated in validate_stock_transfer)
+    IF TG_OP = 'UPDATE' AND OLD.current_quantity IS NOT NULL THEN
+        -- This is likely from process_stock_transfer, skip validation
+        RETURN NEW;
+    END IF;
+
+    -- Get maximum quantity allowed for this shelf-product combination
+    SELECT sl.max_quantity INTO max_qty
+    FROM shelf_layout sl
+    WHERE sl.shelf_id = NEW.shelf_id AND sl.product_id = NEW.product_id;
+
+    IF max_qty IS NULL THEN
+        RAISE EXCEPTION '%', format('Product is not configured for this shelf');
+    END IF;
+
+    IF NEW.current_quantity > max_qty THEN
+        RAISE EXCEPTION '%', format('Quantity (%s) exceeds maximum allowed (%s) for shelf %s',
+                        NEW.current_quantity, max_qty, NEW.shelf_id);
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.validate_shelf_capacity() OWNER TO postgres;
+
+--
+-- Name: validate_shelf_category_consistency(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.validate_shelf_category_consistency() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    shelf_category_id INTEGER;
+    product_category_id INTEGER;
+BEGIN
+    -- Get shelf category
+    SELECT ds.category_id INTO shelf_category_id
+    FROM display_shelves ds
+    WHERE ds.shelf_id = NEW.shelf_id;
+    
+    -- Get product category
+    SELECT p.category_id INTO product_category_id
+    FROM products p
+    WHERE p.product_id = NEW.product_id;
+    
+    IF shelf_category_id != product_category_id THEN
+        RAISE EXCEPTION '%', format('Product category (%s) does not match shelf category (%s)', 
+                        product_category_id, shelf_category_id);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.validate_shelf_category_consistency() OWNER TO postgres;
+
+--
+-- Name: validate_stock_transfer(); Type: FUNCTION; Schema: supermarket; Owner: postgres
+--
+
+CREATE FUNCTION supermarket.validate_stock_transfer() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    available_qty INTEGER;
+    shelf_max_qty INTEGER;
+    shelf_current_qty INTEGER;
+    v_product_code TEXT;
+    v_shelf_code TEXT;
+BEGIN
+    -- Lấy product_code từ bảng products
+    SELECT product_code INTO v_product_code FROM products WHERE product_id = NEW.product_id;
+
+    -- Lấy shelf_code từ bảng display_shelves
+    SELECT shelf_code INTO v_shelf_code FROM display_shelves WHERE shelf_id = NEW.to_shelf_id;
+
+    -- Check warehouse stock availability
+    SELECT COALESCE(SUM(wi.quantity), 0) INTO available_qty
+    FROM warehouse_inventory wi
+    WHERE wi.warehouse_id = NEW.from_warehouse_id 
+      AND wi.product_id = NEW.product_id;
+    
+    IF available_qty < NEW.quantity THEN
+        RAISE EXCEPTION '%', format('Insufficient warehouse stock for product %s. Available: %s, Requested: %s', 
+                        v_product_code, available_qty, NEW.quantity);
+    END IF;
+    
+    -- Check shelf capacity
+    SELECT sl.max_quantity INTO shelf_max_qty
+    FROM shelf_layout sl
+    WHERE sl.shelf_id = NEW.to_shelf_id AND sl.product_id = NEW.product_id;
+    
+    -- Validate shelf layout exists
+    IF shelf_max_qty IS NULL THEN
+        RAISE EXCEPTION '%', format('Product %s is not configured for shelf %s', v_product_code, v_shelf_code);
+    END IF;
+    
+    -- Get current shelf inventory (defaults to 0 if not found)
+    SELECT COALESCE(si.current_quantity, 0) INTO shelf_current_qty
+    FROM shelf_inventory si
+    WHERE si.shelf_id = NEW.to_shelf_id AND si.product_id = NEW.product_id;
+    
+    IF (shelf_current_qty + NEW.quantity) > shelf_max_qty THEN
+        RAISE EXCEPTION '%', format('Transfer would exceed shelf capacity for product %s. Current: %s, Transfer: %s, Max: %s (Shelf: %s)', 
+                        v_product_code, shelf_current_qty, NEW.quantity, shelf_max_qty, v_shelf_code);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION supermarket.validate_stock_transfer() OWNER TO postgres;
 
 SET default_tablespace = '';
 
@@ -573,9 +1155,15 @@ CREATE TABLE supermarket.shelf_inventory (
     shelf_id bigint NOT NULL,
     product_id bigint NOT NULL,
     current_quantity bigint DEFAULT 0 NOT NULL,
+    near_expiry_quantity bigint DEFAULT 0,
+    expired_quantity bigint DEFAULT 0,
+    earliest_expiry_date date,
+    latest_expiry_date date,
     last_restocked timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone,
-    CONSTRAINT chk_shelf_inventory_current_quantity CHECK ((current_quantity >= 0))
+    CONSTRAINT chk_shelf_inventory_current_quantity CHECK ((current_quantity >= 0)),
+    CONSTRAINT chk_shelf_inventory_expired_quantity CHECK ((expired_quantity >= 0)),
+    CONSTRAINT chk_shelf_inventory_near_expiry_quantity CHECK ((near_expiry_quantity >= 0))
 );
 
 
@@ -654,7 +1242,10 @@ CREATE TABLE supermarket.stock_transfers (
     quantity bigint NOT NULL,
     transfer_date timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     employee_id bigint NOT NULL,
-    batch_code character varying(50),
+    batch_code character varying(50) NOT NULL,
+    expiry_date date,
+    import_price numeric(12,2) NOT NULL,
+    selling_price numeric(12,2) NOT NULL,
     notes text,
     created_at timestamp with time zone,
     CONSTRAINT chk_stock_transfers_quantity CHECK ((quantity > 0))
@@ -1354,6 +1945,13 @@ CREATE INDEX idx_shelf_inv_quantity ON supermarket.shelf_inventory USING btree (
 
 
 --
+-- Name: idx_stock_transfers_batch_code; Type: INDEX; Schema: supermarket; Owner: postgres
+--
+
+CREATE INDEX idx_stock_transfers_batch_code ON supermarket.stock_transfers USING btree (batch_code);
+
+
+--
 -- Name: idx_warehouse_inv_expiry; Type: INDEX; Schema: supermarket; Owner: postgres
 --
 
@@ -1365,6 +1963,314 @@ CREATE INDEX idx_warehouse_inv_expiry ON supermarket.warehouse_inventory USING b
 --
 
 CREATE INDEX idx_warehouse_inv_product ON supermarket.warehouse_inventory USING btree (product_id);
+
+
+--
+-- Name: warehouse_inventory tr_apply_expiry_discounts; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_apply_expiry_discounts AFTER INSERT OR UPDATE OF expiry_date ON supermarket.warehouse_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.apply_expiry_discounts();
+
+
+--
+-- Name: sales_invoice_details tr_calculate_detail_subtotal; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_calculate_detail_subtotal BEFORE INSERT OR UPDATE ON supermarket.sales_invoice_details FOR EACH ROW EXECUTE FUNCTION supermarket.calculate_detail_subtotal();
+
+
+--
+-- Name: warehouse_inventory tr_calculate_expiry_date; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_calculate_expiry_date BEFORE INSERT OR UPDATE ON supermarket.warehouse_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.calculate_expiry_date();
+
+
+--
+-- Name: sales_invoice_details tr_calculate_invoice_totals; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_calculate_invoice_totals AFTER INSERT OR DELETE OR UPDATE ON supermarket.sales_invoice_details FOR EACH ROW EXECUTE FUNCTION supermarket.calculate_invoice_totals();
+
+
+--
+-- Name: purchase_order_details tr_calculate_purchase_detail_subtotal; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_calculate_purchase_detail_subtotal BEFORE INSERT OR UPDATE ON supermarket.purchase_order_details FOR EACH ROW EXECUTE FUNCTION supermarket.calculate_purchase_detail_subtotal();
+
+
+--
+-- Name: employee_work_hours tr_calculate_work_hours; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_calculate_work_hours BEFORE INSERT OR UPDATE ON supermarket.employee_work_hours FOR EACH ROW EXECUTE FUNCTION supermarket.calculate_work_hours();
+
+
+--
+-- Name: shelf_inventory tr_check_low_stock; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_check_low_stock AFTER UPDATE ON supermarket.shelf_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.check_low_stock();
+
+
+--
+-- Name: customers tr_check_membership_upgrade; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_check_membership_upgrade AFTER UPDATE OF total_spending ON supermarket.customers FOR EACH ROW EXECUTE FUNCTION supermarket.check_membership_upgrade();
+
+
+--
+-- Name: sales_invoice_details tr_process_sales_stock_deduction; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_process_sales_stock_deduction AFTER INSERT ON supermarket.sales_invoice_details FOR EACH ROW EXECUTE FUNCTION supermarket.process_sales_stock_deduction();
+
+
+--
+-- Name: stock_transfers tr_process_stock_transfer; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_process_stock_transfer AFTER INSERT ON supermarket.stock_transfers FOR EACH ROW EXECUTE FUNCTION supermarket.process_stock_transfer();
+
+
+--
+-- Name: product_categories tr_set_created_timestamp_categories; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_categories BEFORE INSERT ON supermarket.product_categories FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: customers tr_set_created_timestamp_customers; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_customers BEFORE INSERT ON supermarket.customers FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: discount_rules tr_set_created_timestamp_discount_rules; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_discount_rules BEFORE INSERT ON supermarket.discount_rules FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: display_shelves tr_set_created_timestamp_display_shelves; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_display_shelves BEFORE INSERT ON supermarket.display_shelves FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: employee_work_hours tr_set_created_timestamp_employee_work_hours; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_employee_work_hours BEFORE INSERT ON supermarket.employee_work_hours FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: employees tr_set_created_timestamp_employees; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_employees BEFORE INSERT ON supermarket.employees FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: membership_levels tr_set_created_timestamp_membership_levels; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_membership_levels BEFORE INSERT ON supermarket.membership_levels FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: positions tr_set_created_timestamp_positions; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_positions BEFORE INSERT ON supermarket.positions FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: products tr_set_created_timestamp_products; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_products BEFORE INSERT ON supermarket.products FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: purchase_order_details tr_set_created_timestamp_purchase_order_details; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_purchase_order_details BEFORE INSERT ON supermarket.purchase_order_details FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: purchase_orders tr_set_created_timestamp_purchase_orders; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_purchase_orders BEFORE INSERT ON supermarket.purchase_orders FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: sales_invoice_details tr_set_created_timestamp_sales_invoice_details; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_sales_invoice_details BEFORE INSERT ON supermarket.sales_invoice_details FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: sales_invoices tr_set_created_timestamp_sales_invoices; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_sales_invoices BEFORE INSERT ON supermarket.sales_invoices FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: shelf_layout tr_set_created_timestamp_shelf_layout; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_shelf_layout BEFORE INSERT ON supermarket.shelf_layout FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: stock_transfers tr_set_created_timestamp_stock_transfers; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_stock_transfers BEFORE INSERT ON supermarket.stock_transfers FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: suppliers tr_set_created_timestamp_suppliers; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_suppliers BEFORE INSERT ON supermarket.suppliers FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: warehouse tr_set_created_timestamp_warehouse; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_warehouse BEFORE INSERT ON supermarket.warehouse FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: warehouse_inventory tr_set_created_timestamp_warehouse_inventory; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_set_created_timestamp_warehouse_inventory BEFORE INSERT ON supermarket.warehouse_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.set_created_timestamp();
+
+
+--
+-- Name: sales_invoices tr_update_customer_metrics; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_customer_metrics BEFORE INSERT OR UPDATE ON supermarket.sales_invoices FOR EACH ROW EXECUTE FUNCTION supermarket.update_customer_metrics();
+
+
+--
+-- Name: purchase_order_details tr_update_purchase_order_total_insert; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_purchase_order_total_insert AFTER INSERT OR DELETE OR UPDATE ON supermarket.purchase_order_details FOR EACH ROW EXECUTE FUNCTION supermarket.update_purchase_order_total();
+
+
+--
+-- Name: product_categories tr_update_timestamp_categories; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_categories BEFORE UPDATE ON supermarket.product_categories FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: customers tr_update_timestamp_customers; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_customers BEFORE UPDATE ON supermarket.customers FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: employees tr_update_timestamp_employees; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_employees BEFORE UPDATE ON supermarket.employees FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: products tr_update_timestamp_products; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_products BEFORE UPDATE ON supermarket.products FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: purchase_orders tr_update_timestamp_purchase_orders; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_purchase_orders BEFORE UPDATE ON supermarket.purchase_orders FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: shelf_inventory tr_update_timestamp_shelf_inventory; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_shelf_inventory BEFORE UPDATE ON supermarket.shelf_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: shelf_layout tr_update_timestamp_shelf_layout; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_shelf_layout BEFORE UPDATE ON supermarket.shelf_layout FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: suppliers tr_update_timestamp_suppliers; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_suppliers BEFORE UPDATE ON supermarket.suppliers FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: warehouse_inventory tr_update_timestamp_warehouse_inventory; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_update_timestamp_warehouse_inventory BEFORE UPDATE ON supermarket.warehouse_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.update_timestamp();
+
+
+--
+-- Name: products tr_validate_product_price; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_validate_product_price BEFORE INSERT OR UPDATE ON supermarket.products FOR EACH ROW EXECUTE FUNCTION supermarket.validate_product_price();
+
+
+--
+-- Name: shelf_inventory tr_validate_shelf_capacity; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_validate_shelf_capacity BEFORE INSERT OR UPDATE ON supermarket.shelf_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.validate_shelf_capacity();
+
+
+--
+-- Name: shelf_inventory tr_validate_shelf_category_inventory; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_validate_shelf_category_inventory BEFORE INSERT OR UPDATE ON supermarket.shelf_inventory FOR EACH ROW EXECUTE FUNCTION supermarket.validate_shelf_category_consistency();
+
+
+--
+-- Name: shelf_layout tr_validate_shelf_category_layout; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_validate_shelf_category_layout BEFORE INSERT OR UPDATE ON supermarket.shelf_layout FOR EACH ROW EXECUTE FUNCTION supermarket.validate_shelf_category_consistency();
+
+
+--
+-- Name: stock_transfers tr_validate_stock_transfer; Type: TRIGGER; Schema: supermarket; Owner: postgres
+--
+
+CREATE TRIGGER tr_validate_stock_transfer BEFORE INSERT ON supermarket.stock_transfers FOR EACH ROW EXECUTE FUNCTION supermarket.validate_stock_transfer();
 
 
 --
@@ -1571,5 +2477,5 @@ ALTER TABLE ONLY supermarket.warehouse_inventory
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5fbbGUhRaSXPhAtNRvLOJKeQDk4LYIxQ7ucjCEzsbj0x2bRSYAAVLGBwjoIpGog
+\unrestrict tFsuJNYe9lZ0yWbYvrvb46obi2EtoN9T8y8ktqBwT5dJxetMiPVm0To7et03yQS
 
