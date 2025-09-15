@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict tFsuJNYe9lZ0yWbYvrvb46obi2EtoN9T8y8ktqBwT5dJxetMiPVm0To7et03yQS
+\restrict XdhcuFtwTsPTSdlJwNFpUqldOGkxh3kvYJ0kCllg5K8jGuHIfJXVhxrtsbdsIhO
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -1147,6 +1147,51 @@ ALTER SEQUENCE supermarket.sales_invoices_invoice_id_seq OWNED BY supermarket.sa
 
 
 --
+-- Name: shelf_batch_inventory; Type: TABLE; Schema: supermarket; Owner: postgres
+--
+
+CREATE TABLE supermarket.shelf_batch_inventory (
+    shelf_batch_id bigint NOT NULL,
+    shelf_id bigint NOT NULL,
+    product_id bigint NOT NULL,
+    batch_code character varying(50) NOT NULL,
+    quantity bigint NOT NULL,
+    expiry_date date,
+    stocked_date timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    import_price numeric(12,2) NOT NULL,
+    current_price numeric(12,2) NOT NULL,
+    discount_percent numeric(5,2) DEFAULT 0,
+    is_near_expiry boolean DEFAULT false,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    CONSTRAINT chk_shelf_batch_inventory_quantity CHECK ((quantity >= 0))
+);
+
+
+ALTER TABLE supermarket.shelf_batch_inventory OWNER TO postgres;
+
+--
+-- Name: shelf_batch_inventory_shelf_batch_id_seq; Type: SEQUENCE; Schema: supermarket; Owner: postgres
+--
+
+CREATE SEQUENCE supermarket.shelf_batch_inventory_shelf_batch_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE supermarket.shelf_batch_inventory_shelf_batch_id_seq OWNER TO postgres;
+
+--
+-- Name: shelf_batch_inventory_shelf_batch_id_seq; Type: SEQUENCE OWNED BY; Schema: supermarket; Owner: postgres
+--
+
+ALTER SEQUENCE supermarket.shelf_batch_inventory_shelf_batch_id_seq OWNED BY supermarket.shelf_batch_inventory.shelf_batch_id;
+
+
+--
 -- Name: shelf_inventory; Type: TABLE; Schema: supermarket; Owner: postgres
 --
 
@@ -1490,6 +1535,13 @@ ALTER TABLE ONLY supermarket.sales_invoices ALTER COLUMN invoice_id SET DEFAULT 
 
 
 --
+-- Name: shelf_batch_inventory shelf_batch_id; Type: DEFAULT; Schema: supermarket; Owner: postgres
+--
+
+ALTER TABLE ONLY supermarket.shelf_batch_inventory ALTER COLUMN shelf_batch_id SET DEFAULT nextval('supermarket.shelf_batch_inventory_shelf_batch_id_seq'::regclass);
+
+
+--
 -- Name: shelf_inventory shelf_inventory_id; Type: DEFAULT; Schema: supermarket; Owner: postgres
 --
 
@@ -1633,6 +1685,14 @@ ALTER TABLE ONLY supermarket.sales_invoice_details
 
 ALTER TABLE ONLY supermarket.sales_invoices
     ADD CONSTRAINT sales_invoices_pkey PRIMARY KEY (invoice_id);
+
+
+--
+-- Name: shelf_batch_inventory shelf_batch_inventory_pkey; Type: CONSTRAINT; Schema: supermarket; Owner: postgres
+--
+
+ALTER TABLE ONLY supermarket.shelf_batch_inventory
+    ADD CONSTRAINT shelf_batch_inventory_pkey PRIMARY KEY (shelf_batch_id);
 
 
 --
@@ -1828,6 +1888,14 @@ ALTER TABLE ONLY supermarket.employee_work_hours
 
 
 --
+-- Name: shelf_batch_inventory unique_shelf_batch; Type: CONSTRAINT; Schema: supermarket; Owner: postgres
+--
+
+ALTER TABLE ONLY supermarket.shelf_batch_inventory
+    ADD CONSTRAINT unique_shelf_batch UNIQUE (shelf_id, product_id, batch_code);
+
+
+--
 -- Name: shelf_layout unique_shelf_position; Type: CONSTRAINT; Schema: supermarket; Owner: postgres
 --
 
@@ -1928,6 +1996,41 @@ CREATE INDEX idx_sales_invoice_date ON supermarket.sales_invoices USING btree (i
 --
 
 CREATE INDEX idx_sales_invoice_employee ON supermarket.sales_invoices USING btree (employee_id);
+
+
+--
+-- Name: idx_shelf_batch_code; Type: INDEX; Schema: supermarket; Owner: postgres
+--
+
+CREATE INDEX idx_shelf_batch_code ON supermarket.shelf_batch_inventory USING btree (batch_code);
+
+
+--
+-- Name: idx_shelf_batch_expiry; Type: INDEX; Schema: supermarket; Owner: postgres
+--
+
+CREATE INDEX idx_shelf_batch_expiry ON supermarket.shelf_batch_inventory USING btree (expiry_date);
+
+
+--
+-- Name: idx_shelf_batch_inventory_batch_code; Type: INDEX; Schema: supermarket; Owner: postgres
+--
+
+CREATE INDEX idx_shelf_batch_inventory_batch_code ON supermarket.shelf_batch_inventory USING btree (batch_code);
+
+
+--
+-- Name: idx_shelf_batch_inventory_expiry_date; Type: INDEX; Schema: supermarket; Owner: postgres
+--
+
+CREATE INDEX idx_shelf_batch_inventory_expiry_date ON supermarket.shelf_batch_inventory USING btree (expiry_date);
+
+
+--
+-- Name: idx_shelf_batch_product; Type: INDEX; Schema: supermarket; Owner: postgres
+--
+
+CREATE INDEX idx_shelf_batch_product ON supermarket.shelf_batch_inventory USING btree (product_id);
 
 
 --
@@ -2394,6 +2497,30 @@ ALTER TABLE ONLY supermarket.sales_invoices
 
 
 --
+-- Name: shelf_batch_inventory fk_shelf_batch_inventory_product; Type: FK CONSTRAINT; Schema: supermarket; Owner: postgres
+--
+
+ALTER TABLE ONLY supermarket.shelf_batch_inventory
+    ADD CONSTRAINT fk_shelf_batch_inventory_product FOREIGN KEY (product_id) REFERENCES supermarket.products(product_id);
+
+
+--
+-- Name: shelf_batch_inventory fk_shelf_batch_inventory_shelf; Type: FK CONSTRAINT; Schema: supermarket; Owner: postgres
+--
+
+ALTER TABLE ONLY supermarket.shelf_batch_inventory
+    ADD CONSTRAINT fk_shelf_batch_inventory_shelf FOREIGN KEY (shelf_id) REFERENCES supermarket.display_shelves(shelf_id);
+
+
+--
+-- Name: shelf_batch_inventory fk_shelf_inventory_batch_items; Type: FK CONSTRAINT; Schema: supermarket; Owner: postgres
+--
+
+ALTER TABLE ONLY supermarket.shelf_batch_inventory
+    ADD CONSTRAINT fk_shelf_inventory_batch_items FOREIGN KEY (shelf_id, product_id) REFERENCES supermarket.shelf_inventory(shelf_id, product_id);
+
+
+--
 -- Name: shelf_inventory fk_shelf_inventory_product; Type: FK CONSTRAINT; Schema: supermarket; Owner: postgres
 --
 
@@ -2477,5 +2604,5 @@ ALTER TABLE ONLY supermarket.warehouse_inventory
 -- PostgreSQL database dump complete
 --
 
-\unrestrict tFsuJNYe9lZ0yWbYvrvb46obi2EtoN9T8y8ktqBwT5dJxetMiPVm0To7et03yQS
+\unrestrict XdhcuFtwTsPTSdlJwNFpUqldOGkxh3kvYJ0kCllg5K8jGuHIfJXVhxrtsbdsIhO
 

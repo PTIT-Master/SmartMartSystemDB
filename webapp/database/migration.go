@@ -140,6 +140,10 @@ func CreateForeignKeys(db *gorm.DB) error {
 		{"shelf_inventory", "fk_shelf_inventory_shelf", "shelf_id", "display_shelves", "shelf_id"},
 		{"shelf_inventory", "fk_shelf_inventory_product", "product_id", "products", "product_id"},
 
+		// Shelf batch inventory (batch tracking on shelves)
+		{"shelf_batch_inventory", "fk_shelf_batch_inventory_shelf", "shelf_id", "display_shelves", "shelf_id"},
+		{"shelf_batch_inventory", "fk_shelf_batch_inventory_product", "product_id", "products", "product_id"},
+
 		// Warehouse inventory
 		{"warehouse_inventory", "fk_warehouse_inventory_warehouse", "warehouse_id", "warehouse", "warehouse_id"},
 		{"warehouse_inventory", "fk_warehouse_inventory_product", "product_id", "products", "product_id"},
@@ -233,6 +237,7 @@ func AddCustomConstraints(db *gorm.DB) error {
 		{"unique_shelf_position", "ALTER TABLE shelf_layout ADD CONSTRAINT unique_shelf_position UNIQUE (shelf_id, position_code)"},
 		{"unique_shelf_product", "ALTER TABLE shelf_layout ADD CONSTRAINT unique_shelf_product UNIQUE (shelf_id, product_id)"},
 		{"unique_shelf_product_inv", "ALTER TABLE shelf_inventory ADD CONSTRAINT unique_shelf_product_inv UNIQUE (shelf_id, product_id)"},
+		{"unique_shelf_batch", "ALTER TABLE shelf_batch_inventory ADD CONSTRAINT unique_shelf_batch UNIQUE (shelf_id, product_id, batch_code)"},
 		{"unique_employee_date", "ALTER TABLE employee_work_hours ADD CONSTRAINT unique_employee_date UNIQUE (employee_id, work_date)"},
 		{"unique_category_days", "ALTER TABLE discount_rules ADD CONSTRAINT unique_category_days UNIQUE (category_id, days_before_expiry)"},
 	}
@@ -266,6 +271,9 @@ func CreateIndexes(db *gorm.DB) error {
 		{"idx_warehouse_inv_expiry", "CREATE INDEX IF NOT EXISTS idx_warehouse_inv_expiry ON warehouse_inventory(expiry_date)"},
 		{"idx_shelf_inv_product", "CREATE INDEX IF NOT EXISTS idx_shelf_inv_product ON shelf_inventory(product_id)"},
 		{"idx_shelf_inv_quantity", "CREATE INDEX IF NOT EXISTS idx_shelf_inv_quantity ON shelf_inventory(current_quantity)"},
+		{"idx_shelf_batch_product", "CREATE INDEX IF NOT EXISTS idx_shelf_batch_product ON shelf_batch_inventory(product_id)"},
+		{"idx_shelf_batch_expiry", "CREATE INDEX IF NOT EXISTS idx_shelf_batch_expiry ON shelf_batch_inventory(expiry_date)"},
+		{"idx_shelf_batch_code", "CREATE INDEX IF NOT EXISTS idx_shelf_batch_code ON shelf_batch_inventory(batch_code)"},
 
 		// Sales indexes
 		{"idx_sales_invoice_date", "CREATE INDEX IF NOT EXISTS idx_sales_invoice_date ON sales_invoices(invoice_date)"},
