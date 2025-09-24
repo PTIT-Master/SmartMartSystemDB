@@ -182,7 +182,7 @@ func seedEmployeeWorkHours(tx *gorm.DB, employeeMap map[string]uint) error {
 
 	// Generate work hours for first 2 weeks of September 2025
 	startDate, _ := time.Parse("2006-01-02", "2025-09-01")
-	endDate, _ := time.Parse("2006-01-02", "2025-09-14")
+	endDate, _ := time.Parse("2006-01-02", "2025-09-24")
 
 	for date := startDate; !date.After(endDate); date = date.AddDate(0, 0, 1) {
 		// Skip Sundays

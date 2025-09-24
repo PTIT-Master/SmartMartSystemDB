@@ -16,7 +16,7 @@ GOMOD = $(GOCMD) mod
 GORUN = $(GOCMD) run
 
 # Targets
-.PHONY: help build clean test run migrate migrate-drop migrate-schema seed seed-force setup reset deps
+.PHONY: help build clean test run migrate migrate-drop migrate-schema seed seed-force setup reset deps simulate simulate-clear simulate-full
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -84,6 +84,15 @@ docker-db: ## Start PostgreSQL in Docker
 docker-db-stop: ## Stop PostgreSQL Docker container
 	docker stop supermarket-db
 	docker rm supermarket-db
+
+simulate: ## Run store simulation (2025-09-01 to 2025-09-24)
+	$(GORUN) ./cmd/simulate
+
+simulate-clear: ## Clear existing simulation data and run new
+	$(GORUN) ./cmd/simulate -clear
+
+simulate-full: ## Full simulation with initial seed if needed
+	$(GORUN) ./cmd/simulate -seed -clear
 
 # Default target
 .DEFAULT_GOAL := help

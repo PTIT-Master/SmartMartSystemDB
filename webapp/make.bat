@@ -18,6 +18,9 @@ if "%1"=="seed-force" goto seed-force
 if "%1"=="run-seed" goto run-seed
 if "%1"=="setup" goto setup
 if "%1"=="reset" goto reset
+if "%1"=="simulate" goto simulate
+if "%1"=="simulate-clear" goto simulate-clear
+if "%1"=="simulate-full" goto simulate-full
 
 echo Unknown command: %1
 goto help
@@ -45,6 +48,9 @@ echo   seed-force       Force re-seed (clear existing data and re-insert)
 echo   run-seed         Run application with seed data
 echo   setup            Setup database (migrate and seed)
 echo   reset            Reset database (drop, migrate, and seed)
+echo   simulate         Run store simulation (2025-09-01 to 2025-09-24)
+echo   simulate-clear   Clear existing simulation data and run new
+echo   simulate-full    Full simulation with initial seed if needed
 echo.
 goto end
 
@@ -143,6 +149,21 @@ if /i "%confirm%"=="y" (
 ) else (
     echo Reset cancelled.
 )
+goto end
+
+:simulate
+echo Running store simulation (2025-09-01 to 2025-09-24)...
+go run cmd/simulate/main.go
+goto end
+
+:simulate-clear
+echo Clearing existing simulation data and running new simulation...
+go run cmd/simulate/main.go -clear
+goto end
+
+:simulate-full
+echo Running full simulation with initial seed if needed...
+go run cmd/simulate/main.go -seed -clear
 goto end
 
 :end
