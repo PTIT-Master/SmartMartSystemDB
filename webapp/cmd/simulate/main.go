@@ -114,9 +114,6 @@ func main() {
 
 // clearSimulationData removes all simulation-generated data for the specified period
 func clearSimulationData(db *gorm.DB, startDate, endDate string) error {
-	start, _ := time.Parse("2006-01-02", startDate)
-	end, _ := time.Parse("2006-01-02", endDate)
-
 	return db.Transaction(func(tx *gorm.DB) error {
 		// Set search path
 		if err := tx.Exec("SET search_path TO supermarket").Error; err != nil {
@@ -158,10 +155,12 @@ func clearSimulationData(db *gorm.DB, startDate, endDate string) error {
 			log.Printf("Warning: Could not truncate shelf layouts: %v", err)
 		}
 
-		// Clear employee work hours for this period
-		if err := tx.Where("work_date BETWEEN ? AND ?", start, end).
-			Delete(&models.EmployeeWorkHour{}).Error; err != nil {
-			return fmt.Errorf("failed to delete work hours: %w", err)
+		// Reset customer spending to 0 for fresh simulation
+		if err := tx.Model(&models.Customer{}).Updates(map[string]interface{}{
+			"total_spending": 0,
+			"loyalty_points": 0,
+		}).Error; err != nil {
+			log.Printf("Warning: Could not reset customer spending: %v", err)
 		}
 
 		return nil

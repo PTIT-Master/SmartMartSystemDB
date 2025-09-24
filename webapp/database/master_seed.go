@@ -18,32 +18,37 @@ func cleanupPartialData(db *gorm.DB) error {
 			return fmt.Errorf("failed to set search path: %w", err)
 		}
 
-		// Delete in reverse dependency order
-		tables := []string{
-			"shelf_layouts",
-			"shelf_inventory",
-			"warehouse_inventory",
-			"stock_transfers",
-			"sales_invoice_items",
-			"sales_invoices",
-			"purchase_order_items",
-			"purchase_orders",
-			"discount_rules",
-			"display_shelves",
-			"products",
-			"customers",
-			"employees",
-			"membership_levels",
-			"positions",
-			"suppliers",
-			"product_categories",
-			"warehouses",
+		// Clear data using DELETE statements for better control
+		// Clear in reverse dependency order
+		clearStatements := []string{
+			"DELETE FROM employee_work_hours",
+			"DELETE FROM shelf_batch_inventory",
+			"DELETE FROM shelf_layout",
+			"DELETE FROM warehouse_inventory",
+			"DELETE FROM stock_transfers",
+			"DELETE FROM sales_invoice_details",
+			"DELETE FROM sales_invoices",
+			"DELETE FROM purchase_order_details",
+			"DELETE FROM purchase_orders",
+			"DELETE FROM discount_rules",
+			"DELETE FROM customers",
+			"DELETE FROM employees",
+			// Only clear master data if we're doing full reseed
+			"TRUNCATE TABLE display_shelves RESTART IDENTITY CASCADE",
+			"TRUNCATE TABLE products RESTART IDENTITY CASCADE",
+			"TRUNCATE TABLE membership_levels RESTART IDENTITY CASCADE",
+			"TRUNCATE TABLE positions RESTART IDENTITY CASCADE",
+			"TRUNCATE TABLE suppliers RESTART IDENTITY CASCADE",
+			"TRUNCATE TABLE product_categories RESTART IDENTITY CASCADE",
+			"TRUNCATE TABLE warehouse RESTART IDENTITY CASCADE",
 		}
 
-		for _, table := range tables {
-			if err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table)).Error; err != nil {
-				log.Printf("Warning: Could not truncate table %s: %v", table, err)
-				// Continue with other tables even if one fails
+		for _, stmt := range clearStatements {
+			if err := tx.Exec(stmt).Error; err != nil {
+				log.Printf("Warning: Could not execute %s: %v", stmt, err)
+				// Continue with other statements even if one fails
+			} else {
+				log.Printf("  ✓ Executed: %s", stmt)
 			}
 		}
 
@@ -56,19 +61,23 @@ func cleanupPartialData(db *gorm.DB) error {
 func SeedData(db *gorm.DB) error {
 	log.Println("Checking if database needs seeding...")
 
-	// Check if data already exists - check multiple tables for consistency
-	var productCount, categoryCount, shelfCount int64
+	// Check if data already exists - check multiple essential tables for consistency
+	var productCount, categoryCount, shelfCount, employeeCount, customerCount int64
 	db.Model(&models.Product{}).Count(&productCount)
 	db.Model(&models.ProductCategory{}).Count(&categoryCount)
 	db.Model(&models.DisplayShelf{}).Count(&shelfCount)
+	db.Model(&models.Employee{}).Count(&employeeCount)
+	db.Model(&models.Customer{}).Count(&customerCount)
 
-	if productCount > 0 || categoryCount > 0 || shelfCount > 0 {
-		// Check if partial seeding occurred
-		if productCount > 0 && categoryCount > 0 && shelfCount > 0 {
-			log.Println("Database already has complete data. Skipping seed.")
+	if productCount > 0 || categoryCount > 0 || shelfCount > 0 || employeeCount > 0 || customerCount > 0 {
+		// Check if complete seeding occurred - all essential tables should have data
+		if productCount > 0 && categoryCount > 0 && shelfCount > 0 && employeeCount > 0 && customerCount > 0 {
+			log.Printf("Database already has complete data (Products: %d, Categories: %d, Shelves: %d, Employees: %d, Customers: %d). Skipping seed.",
+				productCount, categoryCount, shelfCount, employeeCount, customerCount)
 			return nil
 		} else {
-			log.Println("Database has partial data - cleaning up for consistent seeding...")
+			log.Printf("Database has incomplete data (Products: %d, Categories: %d, Shelves: %d, Employees: %d, Customers: %d) - cleaning up for consistent seeding...",
+				productCount, categoryCount, shelfCount, employeeCount, customerCount)
 			// Clean up partial data to ensure consistency
 			if err := cleanupPartialData(db); err != nil {
 				return fmt.Errorf("failed to cleanup partial data: %w", err)

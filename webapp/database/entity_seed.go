@@ -123,26 +123,9 @@ func seedCustomers(tx *gorm.DB, membershipMap map[string]uint) (map[string]uint,
 		// Registration date - spread over 8 months
 		regDate := baseRegDate.AddDate(0, (i-1)%8, (i*3)%28)
 
-		// Spending and points based on membership level
-		var totalSpending float64
-		var loyaltyPoints int
-		switch membershipLevel {
-		case "Bronze":
-			totalSpending = float64(500000 + (i*50000)%4500000) // 0.5M - 5M
-			loyaltyPoints = int(totalSpending / 10000)
-		case "Silver":
-			totalSpending = float64(5000000 + (i*100000)%15000000) // 5M - 20M
-			loyaltyPoints = int(totalSpending * 1.2 / 10000)
-		case "Gold":
-			totalSpending = float64(20000000 + (i*500000)%30000000) // 20M - 50M
-			loyaltyPoints = int(totalSpending * 1.5 / 10000)
-		case "Platinum":
-			totalSpending = float64(50000000 + (i*1000000)%50000000) // 50M - 100M
-			loyaltyPoints = int(totalSpending * 2.0 / 10000)
-		case "Diamond":
-			totalSpending = float64(100000000 + (i*2000000)%100000000) // 100M - 200M
-			loyaltyPoints = int(totalSpending * 2.5 / 10000)
-		}
+		// Initialize customers with zero spending and points for simulation
+		var totalSpending float64 = 0
+		var loyaltyPoints int = 0
 
 		customer := models.Customer{
 			CustomerCode:      strPtr(fmt.Sprintf("CUST%03d", i)),

@@ -1001,7 +1001,7 @@ func RunSimulation(db *gorm.DB, startDate, endDate time.Time) error {
 		DB:                db,
 		MinShelfStock:     20,
 		MinWarehouseStock: 50,
-		AverageDailySales: 50,
+		AverageDailySales: 8, // Increase daily sales to ensure 100+ invoices (8*20 days = 160+ invoices)
 		RestockThreshold:  0.3,
 	}
 
