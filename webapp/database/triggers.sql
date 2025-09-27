@@ -526,7 +526,7 @@ BEGIN
     
     -- Get warehouse name
     SELECT w.warehouse_name INTO warehouse_name
-    FROM warehouses w WHERE w.warehouse_id = NEW.from_warehouse_id;
+    FROM warehouse w WHERE w.warehouse_id = NEW.from_warehouse_id;
     
     -- Get shelf name
     SELECT ds.shelf_name INTO shelf_name

@@ -91,8 +91,8 @@ simulate: ## Run store simulation (2025-09-01 to 2025-09-24)
 simulate-clear: ## Clear existing simulation data and run new
 	$(GORUN) ./cmd/simulate -clear
 
-simulate-full: ## Full simulation with initial seed if needed
-	$(GORUN) ./cmd/simulate -seed -clear
+simulate-full: ## Full simulation with initial seed if needed (query logging disabled)
+	$(GORUN) ./cmd/simulate -seed -clear -no-query-log
 
 # Default target
 .DEFAULT_GOAL := help

@@ -20,10 +20,10 @@ type StockTransfer struct {
 	CreatedAt       time.Time  `json:"created_at"`
 
 	// Relationships
-	Product       Product      `gorm:"foreignKey:ProductID" json:"product,omitempty"`
-	FromWarehouse Warehouse    `gorm:"foreignKey:FromWarehouseID" json:"from_warehouse,omitempty"`
-	ToShelf       DisplayShelf `gorm:"foreignKey:ToShelfID" json:"to_shelf,omitempty"`
-	Employee      Employee     `gorm:"foreignKey:EmployeeID" json:"employee,omitempty"`
+	Product       Product      `gorm:"foreignKey:ProductID;references:ProductID" json:"product,omitempty"`
+	FromWarehouse Warehouse    `gorm:"foreignKey:FromWarehouseID;references:WarehouseID" json:"from_warehouse,omitempty"`
+	ToShelf       DisplayShelf `gorm:"foreignKey:ToShelfID;references:ShelfID" json:"to_shelf,omitempty"`
+	Employee      Employee     `gorm:"foreignKey:EmployeeID;references:EmployeeID" json:"employee,omitempty"`
 }
 
 // TableName specifies the table name for StockTransfer

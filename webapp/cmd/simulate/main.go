@@ -17,10 +17,11 @@ import (
 func main() {
 	// Parse command line flags
 	var (
-		startDate = flag.String("start", "2025-09-01", "Simulation start date (YYYY-MM-DD)")
-		endDate   = flag.String("end", "2025-09-24", "Simulation end date (YYYY-MM-DD)")
-		clear     = flag.Bool("clear", false, "Clear existing simulation data before running")
-		seed      = flag.Bool("seed", false, "Run initial seed if database is empty")
+		startDate  = flag.String("start", "2025-09-01", "Simulation start date (YYYY-MM-DD)")
+		endDate    = flag.String("end", "2025-09-24", "Simulation end date (YYYY-MM-DD)")
+		clear      = flag.Bool("clear", false, "Clear existing simulation data before running")
+		seed       = flag.Bool("seed", false, "Run initial seed if database is empty")
+		noQueryLog = flag.Bool("no-query-log", false, "Disable query logging during simulation")
 	)
 	flag.Parse()
 
@@ -34,7 +35,7 @@ func main() {
 	}
 
 	// Connect to database
-	if err := database.Initialize(&cfg.Database); err != nil {
+	if err := database.InitializeWithOptions(&cfg.Database, *noQueryLog); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 

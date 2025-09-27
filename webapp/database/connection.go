@@ -15,13 +15,27 @@ var DB *gorm.DB
 
 // Initialize initializes the database connection
 func Initialize(cfg *config.DatabaseConfig) error {
+	return InitializeWithOptions(cfg, false)
+}
+
+// InitializeWithOptions initializes the database connection with options
+func InitializeWithOptions(cfg *config.DatabaseConfig, disableQueryLog bool) error {
 	var err error
 
 	// Configure GORM with custom logger
-	gormConfig := &gorm.Config{
-		Logger: &CustomGormLogger{
+	var gormLogger logger.Interface
+	if disableQueryLog {
+		// Use default logger without query logging
+		gormLogger = logger.Default.LogMode(logger.Silent)
+	} else {
+		// Use custom logger with query logging
+		gormLogger = &CustomGormLogger{
 			Interface: logger.Default.LogMode(logger.Info),
-		},
+		}
+	}
+
+	gormConfig := &gorm.Config{
+		Logger: gormLogger,
 		NowFunc: func() time.Time {
 			return time.Now().Local()
 		},
