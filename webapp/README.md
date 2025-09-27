@@ -1,274 +1,168 @@
-# Supermarket Management System - Go Web Application
+# Hệ thống quản lý siêu thị - Web Application
 
-## 📋 Overview
+## 📋 Giới thiệu
 
-Web application for supermarket retail management system built with Go and GORM, following BCNF database design principles.
+Ứng dụng web quản lý siêu thị được xây dựng với Go Fiber và HTML templates, tập trung vào database operations với VIEWs và stored procedures cho môn học Cơ sở dữ liệu.
 
-## 🏗️ Project Structure
+## 🚀 Tính năng chính
+
+- **SQL Debug Panel**: Hiển thị tất cả câu lệnh SQL được thực thi
+- **Quản lý sản phẩm**: CRUD operations sử dụng raw SQL và VIEWs
+- **Quản lý kho hàng**: Theo dõi hàng hóa trong kho và trên quầy
+- **Cảnh báo tự động**: Sản phẩm sắp hết hàng, sản phẩm sắp hết hạn
+- **Báo cáo thống kê**: Sử dụng VIEWs và stored procedures
+
+## 🛠️ Công nghệ sử dụng
+
+- **Backend**: Go 1.24+
+- **Web Framework**: Fiber v2
+- **Template Engine**: HTML/Template
+- **Database**: PostgreSQL 16+
+- **ORM**: GORM (với raw SQL queries)
+
+## 📦 Cài đặt
+
+### Yêu cầu hệ thống
+- Go 1.24 hoặc cao hơn
+- PostgreSQL 16 hoặc cao hơn
+- Git
+
+### Các bước cài đặt
+
+1. **Clone repository**
+```bash
+git clone <repository-url>
+cd webapp
+```
+
+2. **Cấu hình database**
+```bash
+# Copy file cấu hình mẫu
+copy env.example .env
+
+# Chỉnh sửa .env với thông tin database của bạn
+notepad .env
+```
+
+3. **Cài đặt dependencies**
+```bash
+go mod download
+```
+
+4. **Chạy migration và seed data**
+```bash
+# Chạy migration để tạo tables, views, procedures
+go run main.go -migrate
+
+# Seed dữ liệu mẫu
+go run main.go -seed
+
+# Hoặc chạy cả hai
+go run main.go -migrate -seed
+```
+
+5. **Khởi động server**
+```bash
+go run main.go
+```
+
+Server sẽ chạy tại: http://localhost:8080
+
+## 📝 Sử dụng
+
+### SQL Debug Panel
+- Panel ở trên cùng hiển thị tất cả SQL queries đã thực thi
+- Click "Toggle" để thu gọn/mở rộng
+- Click "Clear" để xóa logs
+- Auto-refresh mỗi 2 giây
+
+### Quản lý sản phẩm
+1. Truy cập menu "Sản phẩm"
+2. Thêm/Sửa/Xóa sản phẩm
+3. Xem chi tiết với thông tin tồn kho
+4. Lưu ý: Giá bán phải > giá nhập (constraint)
+
+### Database Views (được tạo tự động)
+- `v_product_overview`: Tổng quan sản phẩm
+- `v_low_stock_products`: Sản phẩm sắp hết hàng (tổng kho + kệ < threshold)
+- `v_low_shelf_products`: Sản phẩm cần bổ sung lên kệ (kệ < threshold, còn kho)
+- `v_warehouse_empty_products`: Sản phẩm hết kho nhưng còn trên quầy (cần nhập thêm)
+- `v_expiring_products`: Sản phẩm sắp hết hạn
+- `v_product_revenue`: Doanh thu theo sản phẩm
+- `v_supplier_revenue`: Doanh thu theo nhà cung cấp
+- `v_vip_customers`: Khách hàng VIP
+- `v_shelf_status`: Tình trạng quầy hàng
+
+### Stored Procedures (được tạo tự động)
+- `transfer_stock_to_shelf()`: Chuyển hàng từ kho lên quầy
+- `calculate_invoice_total()`: Tính tổng hóa đơn với giảm giá
+- `process_sale_payment()`: Xử lý thanh toán và cập nhật inventory
+- `update_expiry_discounts()`: Cập nhật giảm giá cho hàng sắp hết hạn
+- `get_revenue_report()`: Báo cáo doanh thu theo thời gian
+- `check_restock_alerts()`: Kiểm tra cảnh báo bổ sung hàng
+
+## 🔧 Makefile Commands
+
+```bash
+# Windows (sử dụng make.bat)
+make.bat build      # Build ứng dụng
+make.bat run        # Chạy server
+make.bat migrate    # Chạy migration
+make.bat seed       # Seed dữ liệu
+make.bat clean      # Xóa build files
+
+# Linux/Mac
+make build
+make run
+make migrate
+make seed
+make clean
+```
+
+## 📚 Cấu trúc project
 
 ```
 webapp/
-├── config/          # Configuration management
-│   └── config.go    # Database and app configuration
-├── database/        # Database connection and migration
-│   ├── connection.go # Database connection setup
-│   └── migration.go  # Migration utilities
-├── models/          # GORM models (BCNF normalized)
-│   ├── base.go             # Base model structures
-│   ├── product_category.go # Product categories
-│   ├── supplier.go         # Suppliers
-│   ├── product.go          # Products
-│   ├── discount_rule.go    # Discount rules
-│   ├── warehouse.go        # Warehouse & inventory
-│   ├── display_shelf.go    # Display shelves & layout
-│   ├── employee.go         # Employees & positions
-│   ├── customer.go         # Customers & membership
-│   ├── sales_invoice.go    # Sales invoices
-│   ├── purchase_order.go   # Purchase orders
-│   ├── stock_transfer.go   # Stock transfers
-│   └── models.go           # Model registry
-├── main.go          # Application entry point
-├── go.mod           # Go module file
-└── env.example      # Environment configuration example
+├── web/                    # Web application
+│   ├── handlers/          # Route handlers
+│   ├── middleware/        # Middleware (SQL logger)
+│   └── templates/         # HTML templates
+│       ├── layouts/       # Base layout với SQL debug panel
+│       └── pages/         # Page templates
+├── database/              # Database layer
+│   ├── connection.go      # Database connection
+│   ├── migration.go       # Migration logic
+│   ├── query_logger.go    # SQL query logger
+│   └── views_procedures.sql # VIEWs và Stored Procedures
+├── models/                # GORM models
+├── config/               # Configuration
+└── main.go              # Entry point
 ```
 
-## 🚀 Setup Instructions
-
-### 1. Prerequisites
-
-- Go 1.24 or higher
-- PostgreSQL 13 or higher
-- Git
-
-### 2. Database Setup
-
-You have two options for setting up the database:
-
-#### Option A: Using GORM AutoMigrate (Recommended for new projects)
-
-```bash
-# Create database
-psql -U postgres -c "CREATE DATABASE supermarket;"
-
-# Navigate to webapp directory
-cd webapp
-
-# Run migration
-go run cmd/migrate/main.go
-
-# Or use Makefile
-make migrate
-```
-
-#### Option B: Using SQL Scripts (For complete functionality with triggers)
-
-```bash
-# Connect to PostgreSQL
-psql -U postgres
-
-# Create database
-CREATE DATABASE supermarket;
-
-# Connect to the database
-\c supermarket
-
-# Run the schema script
-\i ../sql/01_schema.sql
-
-# Run the functions script (optional)
-\i ../sql/02_functions.sql
-
-# Insert sample data (optional)
-\i ../sql/04_insert_sample_data.sql
-```
-
-### 3. Application Setup
-
-```bash
-# Navigate to webapp directory
-cd webapp
-
-# Copy environment configuration
-cp env.example .env
-
-# Edit .env with your database credentials
-# Update DB_PASSWORD and other settings as needed
-
-# Download dependencies
-go mod download
-
-# Run the application
-go run main.go
-```
-
-## 🔧 Configuration
-
-Create a `.env` file in the webapp directory with the following configuration:
-
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password_here
-DB_NAME=supermarket
-DB_SSLMODE=disable
-
-# Application Configuration
-APP_ENV=development
-APP_PORT=8080
-```
-
-## 📊 Database Models
-
-The application uses GORM models that map to the PostgreSQL schema following BCNF normalization:
-
-### Core Entities
-- **Products & Categories**: Product catalog management
-- **Suppliers**: Supplier information and relationships
-- **Warehouse & Inventory**: Stock management in warehouse
-- **Display Shelves**: Shelf layout and inventory
-- **Employees & Positions**: Staff management
-- **Customers & Membership**: Customer loyalty program
-
-### Transactional Entities
-- **Sales Invoices**: Sales transactions
-- **Purchase Orders**: Supplier orders
-- **Stock Transfers**: Warehouse to shelf transfers
-
-### Business Rules (Enforced at DB level)
-- Selling price must be greater than import price
-- Each shelf can only display products from one category
-- Stock quantities cannot be negative
-- Automatic membership level upgrades based on spending
-- Triggers for inventory updates after sales
-
-## 🔨 Development
-
-### Running in Development Mode
-
-```bash
-# With hot reload (install air first)
-go install github.com/cosmtrek/air@latest
-air
-
-# Or standard run
-go run main.go
-
-# Run with auto-migration
-go run main.go -migrate
-```
-
-### Database Migration Commands
-
-```bash
-# On Linux/macOS - Using Makefile
-make migrate          # Run migration
-make migrate-drop     # Drop all tables and recreate
-make migrate-schema   # Create schema only
-make test-connection  # Test database connection
-
-# On Windows - Using make.bat
-make.bat migrate          # Run migration
-make.bat migrate-drop     # Drop all tables and recreate
-make.bat migrate-schema   # Create schema only
-make.bat test-connection  # Test database connection
-
-# Using Go directly (all platforms)
-go run cmd/migrate/main.go          # Run migration
-go run cmd/migrate/main.go -drop    # Drop and recreate
-go run cmd/migrate/main.go -schema  # Schema only
-go run test_connection.go           # Test connection
-```
-
-### Database Seeding Commands
-
-```bash
-# On Linux/macOS - Using Makefile
-make seed             # Seed database with sample data
-make seed-force       # Force re-seed (clear and re-insert)
-make setup            # Complete setup (migrate + seed)
-make reset            # Full reset (drop + migrate + seed)
-
-# On Windows - Using make.bat
-make.bat seed             # Seed database with sample data  
-make.bat seed-force       # Force re-seed (clear and re-insert)
-make.bat setup            # Complete setup (migrate + seed)
-make.bat reset            # Full reset (drop + migrate + seed)
-
-# Using Go directly (all platforms)
-go run cmd/seed/main.go           # Seed database
-go run cmd/seed/main.go -force    # Force re-seed
-go run main.go -migrate -seed     # Run app with migration and seed
-```
-
-### Building for Production
-
-```bash
-# Build the application
-go build -o supermarket-app main.go
-
-# Run the binary
-./supermarket-app
-
-# Run with migration
-./supermarket-app -migrate
-```
-
-## 📝 Important Notes
-
-1. **Schema Management Options**:
-   - **GORM AutoMigrate**: Convenient for development and new projects. Creates tables, indexes, and basic constraints.
-   - **SQL Scripts**: Recommended for production. Includes triggers, stored procedures, and complex constraints.
-
-2. **Database Connection**: The application automatically sets the search path to the `supermarket` schema.
-
-3. **Model Relationships**: GORM models include relationship definitions for easy data loading with Preload/Joins.
-
-4. **Time Handling**: All timestamps use local time zone.
-
-5. **Migration Notes**:
-   - GORM AutoMigrate creates tables and basic constraints
-   - Custom constraints and indexes are added automatically
-   - For full functionality (triggers, functions), use SQL scripts
-
-## 🔄 Next Steps
-
-To complete the web application, you'll need to add:
-
-1. **API Layer**
-   - RESTful endpoints
-   - Request/response DTOs
-   - Validation middleware
-
-2. **Business Logic**
-   - Service layer for business operations
-   - Transaction management
-   - Error handling
-
-3. **Authentication**
-   - User authentication
-   - JWT tokens
-   - Role-based access control
-
-4. **Frontend**
-   - Web UI (React/Vue/Angular)
-   - Admin dashboard
-   - POS interface
-
-## 📚 Dependencies
-
-- `gorm.io/gorm` - ORM library
-- `gorm.io/driver/postgres` - PostgreSQL driver
-- `github.com/joho/godotenv` - Environment variable management
-
-## 🤝 Contributing
-
-1. Follow Go best practices and conventions
-2. Maintain BCNF normalization in any schema changes
-3. Write tests for new features
-4. Update documentation as needed
+## 🎯 Đặc điểm cho môn học Database
+
+1. **Raw SQL Queries**: Sử dụng raw SQL thay vì ORM methods
+2. **Database VIEWs**: Tận dụng VIEWs cho các queries phức tạp
+3. **Stored Procedures**: Business logic trong database
+4. **SQL Debug Panel**: Xem real-time SQL execution
+5. **Constraints**: Check constraints, foreign keys được implement đầy đủ
+6. **Triggers**: Tự động update inventory, validate data
+
+## 🐛 Troubleshooting
+
+### Lỗi kết nối database
+- Kiểm tra PostgreSQL đang chạy
+- Kiểm tra thông tin trong file .env
+- Đảm bảo schema `supermarket` tồn tại
+
+### Lỗi migration
+- Xóa schema và tạo lại: `DROP SCHEMA supermarket CASCADE;`
+- Chạy lại migration: `go run main.go -migrate`
+
+### Lỗi template
+- Đảm bảo đang ở thư mục webapp khi chạy
+- Templates phải có đuôi .html
 
 ## 📄 License
 
-[Your License Here]
+MIT

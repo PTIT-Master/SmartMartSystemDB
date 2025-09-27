@@ -1,170 +1,74 @@
 @echo off
-setlocal
 
 if "%1"=="" goto help
-if "%1"=="help" goto help
+
 if "%1"=="build" goto build
+if "%1"=="run" goto run
+if "%1"=="migrate" goto migrate
+if "%1"=="seed" goto seed
+if "%1"=="migrate-seed" goto migrate-seed
 if "%1"=="clean" goto clean
 if "%1"=="test" goto test
-if "%1"=="test-connection" goto test-connection
-if "%1"=="deps" goto deps
-if "%1"=="run" goto run
-if "%1"=="run-migrate" goto run-migrate
-if "%1"=="migrate" goto migrate
-if "%1"=="migrate-drop" goto migrate-drop
-if "%1"=="migrate-schema" goto migrate-schema
-if "%1"=="seed" goto seed
-if "%1"=="seed-force" goto seed-force
-if "%1"=="run-seed" goto run-seed
-if "%1"=="setup" goto setup
-if "%1"=="reset" goto reset
-if "%1"=="simulate" goto simulate
-if "%1"=="simulate-clear" goto simulate-clear
-if "%1"=="simulate-full" goto simulate-full
-
-echo Unknown command: %1
-goto help
-
-:help
-echo.
-echo Supermarket Management System - Build Commands
-echo.
-echo Usage: make.bat [command]
-echo.
-echo Available commands:
-echo   help             Show this help message
-echo   build            Build the application
-echo   clean            Clean build artifacts
-echo   test             Run tests
-echo   test-connection  Test database connection
-echo   deps             Download dependencies
-echo   run              Run the application
-echo   run-migrate      Run the application with migration
-echo   migrate          Run database migration
-echo   migrate-drop     Drop all tables and recreate (WARNING: Data loss!)
-echo   migrate-schema   Create schema only
-echo   seed             Seed database with sample data
-echo   seed-force       Force re-seed (clear existing data and re-insert)
-echo   run-seed         Run application with seed data
-echo   setup            Setup database (migrate and seed)
-echo   reset            Reset database (drop, migrate, and seed)
-echo   simulate         Run store simulation (2025-09-01 to 2025-09-24)
-echo   simulate-clear   Clear existing simulation data and run new
-echo   simulate-full    Full simulation with initial seed if needed
-echo.
-goto end
+if "%1"=="help" goto help
 
 :build
 echo Building application...
-go build -o supermarket-app.exe -v .
-goto end
-
-:clean
-echo Cleaning build artifacts...
-go clean
-if exist supermarket-app.exe del supermarket-app.exe
-goto end
-
-:test
-echo Running tests...
-go test -v ./...
-goto end
-
-:test-connection
-echo Testing database connection...
-go run test_connection.go
-goto end
-
-:deps
-echo Downloading dependencies...
-go mod download
-go mod tidy
+go build -o supermarket.exe main.go
+echo Build complete: supermarket.exe
 goto end
 
 :run
-echo Running application...
+echo Starting server...
 go run main.go
-goto end
-
-:run-migrate
-echo Running application with migration...
-go run main.go -migrate
 goto end
 
 :migrate
 echo Running database migration...
-go run cmd/migrate/main.go
-goto end
-
-:migrate-drop
-echo Dropping all tables and recreating...
-echo WARNING: This will delete all data!
-echo.
-set /p confirm="Are you sure? (y/N): "
-if /i "%confirm%"=="y" (
-    go run cmd/migrate/main.go -drop
-) else (
-    echo Migration cancelled.
-)
-goto end
-
-:migrate-schema
-echo Creating schema only...
-go run cmd/migrate/main.go -schema
+go run main.go -migrate
 goto end
 
 :seed
-echo Seeding database with sample data...
-go run cmd/seed/main.go
-goto end
-
-:seed-force
-echo Force re-seeding database...
-go run cmd/seed/main.go -force
-goto end
-
-:run-seed
-echo Running application with seed data...
+echo Seeding database...
 go run main.go -seed
 goto end
 
-:setup
-echo Setting up database (migrate and seed)...
-go run cmd/migrate/main.go
-if %errorlevel% neq 0 goto end
-go run cmd/seed/main.go
-echo Database setup complete!
+:migrate-seed
+echo Running migration and seeding...
+go run main.go -migrate -seed
 goto end
 
-:reset
-echo Resetting database (drop, migrate, and seed)...
-echo WARNING: This will delete all data!
-echo.
-set /p confirm="Are you sure? (y/N): "
-if /i "%confirm%"=="y" (
-    go run cmd/migrate/main.go -drop
-    if %errorlevel% neq 0 goto end
-    go run cmd/seed/main.go
-    echo Database reset complete!
+:clean
+echo Cleaning build files...
+del /f supermarket.exe 2>nul
+del /f test_build.exe 2>nul
+echo Clean complete
+goto end
+
+:test
+echo Testing build...
+go build -o test_build.exe
+if %errorlevel% neq 0 (
+    echo Build failed!
 ) else (
-    echo Reset cancelled.
+    echo Build successful!
+    del /f test_build.exe
 )
 goto end
 
-:simulate
-echo Running store simulation (2025-09-01 to 2025-09-24)...
-go run cmd/simulate/main.go
-goto end
-
-:simulate-clear
-echo Clearing existing simulation data and running new simulation...
-go run cmd/simulate/main.go -clear
-goto end
-
-:simulate-full
-echo Running full simulation with initial seed if needed...
-go run cmd/simulate/main.go -seed -clear
-goto end
+:help
+echo Supermarket Management System - Build Commands
+echo.
+echo Usage: make.bat [command]
+echo.
+echo Commands:
+echo   build         Build the application
+echo   run           Run the server
+echo   migrate       Run database migration
+echo   seed          Seed database with sample data
+echo   migrate-seed  Run migration and seed
+echo   clean         Remove build files
+echo   test          Test if build works
+echo   help          Show this help message
+echo.
 
 :end
-endlocal

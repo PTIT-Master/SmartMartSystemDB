@@ -31,5 +31,8 @@ func AllModels() []interface{} {
 		&SalesInvoiceDetail{},  // depends on: SalesInvoice, Product
 		&PurchaseOrderDetail{}, // depends on: PurchaseOrder, Product
 		&StockTransfer{},       // depends on: Product, Warehouse, DisplayShelf, Employee
+
+		// 5. Audit/logging tables
+		&ActivityLog{}, // independent logging table
 	}
 }

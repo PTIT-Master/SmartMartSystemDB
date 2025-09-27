@@ -1,0 +1,73 @@
+{{template "layouts/base" .}}
+
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Danh sách sản phẩm</span>
+            <a href="/products/new" class="btn btn-success">+ Thêm sản phẩm</a>
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Mã SP</th>
+                <th>Tên sản phẩm</th>
+                <th>Danh mục</th>
+                <th>Nhà cung cấp</th>
+                <th>Giá nhập</th>
+                <th>Giá bán</th>
+                <th>SL Kho</th>
+                <th>SL Quầy</th>
+                <th>Tổng SL</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Products}}
+            <tr>
+                <td>{{.ProductCode}}</td>
+                <td>{{.ProductName}}</td>
+                <td>{{.CategoryName}}</td>
+                <td>{{.SupplierName}}</td>
+                <td>{{formatCurrency .ImportPrice}}</td>
+                <td>{{formatCurrency .SellingPrice}}</td>
+                <td>{{.WarehouseQuantity}}</td>
+                <td>{{.ShelfQuantity}}</td>
+                <td><strong>{{.TotalQuantity}}</strong></td>
+                <td>
+                    <a href="/products/{{.ProductID}}" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;">Xem</a>
+                    <a href="/products/{{.ProductID}}/edit" class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;">Sửa</a>
+                    <button onclick="deleteProduct({{.ProductID}})" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;">Xóa</button>
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="10" style="text-align: center;">Không có sản phẩm nào</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function deleteProduct(id) {
+    if (confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) {
+        fetch('/products/' + id, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Không thể xóa sản phẩm');
+                });
+            }
+        })
+        .catch(error => {
+            alert('Lỗi: ' + error);
+        });
+    }
+}
+</script>

@@ -1,0 +1,92 @@
+{{template "layouts/base" .}}
+
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Chi tiết sản phẩm</span>
+            <div>
+                <a href="/products/{{.Product.ProductID}}/edit" class="btn btn-warning">Chỉnh sửa</a>
+                <a href="/products" class="btn btn-primary">Quay lại</a>
+            </div>
+        </div>
+    </div>
+    
+    <div style="padding: 20px;">
+        <div class="row">
+            <div class="col">
+                <h3>{{.Product.ProductName}}</h3>
+                <p style="color: #7f8c8d;">Mã sản phẩm: <strong>{{.Product.ProductCode}}</strong></p>
+            </div>
+        </div>
+        
+        <div class="row" style="margin-top: 20px;">
+            <div class="col">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="font-weight: bold; width: 40%;">Danh mục:</td>
+                        <td>{{.Product.CategoryName}}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Nhà cung cấp:</td>
+                        <td>{{.Product.SupplierName}}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Giá nhập:</td>
+                        <td>{{formatCurrency .Product.ImportPrice}}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Giá bán:</td>
+                        <td style="color: #27ae60; font-size: 18px;">
+                            <strong>{{formatCurrency .Product.SellingPrice}}</strong>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="col">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="font-weight: bold; width: 40%;">Tồn kho tối thiểu:</td>
+                        <td>{{.Product.MinStockLevel}}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Hạn sử dụng:</td>
+                        <td>{{.Product.ShelfLifeDays}} ngày</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Số lượng trong kho:</td>
+                        <td>{{.Inventory.WarehouseQty}}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Số lượng trên quầy:</td>
+                        <td>{{.Inventory.ShelfQty}}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 15px; background: #ecf0f1; border-radius: 5px;">
+            <h4>Thông tin tồn kho</h4>
+            <div class="stats-grid" style="margin-top: 15px;">
+                <div class="stat-card">
+                    <div class="stat-value">{{.Inventory.WarehouseQty}}</div>
+                    <div class="stat-label">Trong kho</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{.Inventory.ShelfQty}}</div>
+                    <div class="stat-label">Trên quầy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{.Inventory.WarehouseQty}} + {{.Inventory.ShelfQty}}</div>
+                    <div class="stat-label">Tổng cộng</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #3498db">
+                        {{.Product.MinStockLevel}}
+                    </div>
+                    <div class="stat-label">Ngưỡng tối thiểu</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

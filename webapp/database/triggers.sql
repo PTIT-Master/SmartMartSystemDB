@@ -476,6 +476,152 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
+-- 8. ACTIVITY LOGGING TRIGGERS
+-- ============================================================================
+
+-- 8.1 Log Product Activities
+CREATE OR REPLACE FUNCTION log_product_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    activity_desc TEXT;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        activity_desc := format('Sản phẩm mới được tạo: %s (Mã: %s)', 
+                               NEW.product_name, NEW.product_code);
+        
+        INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+        VALUES ('PRODUCT_CREATED', activity_desc, 'products', NEW.product_id, CURRENT_TIMESTAMP);
+        
+    ELSIF TG_OP = 'UPDATE' THEN
+        activity_desc := format('Sản phẩm được cập nhật: %s (Mã: %s)', 
+                               NEW.product_name, NEW.product_code);
+        
+        INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+        VALUES ('PRODUCT_UPDATED', activity_desc, 'products', NEW.product_id, CURRENT_TIMESTAMP);
+        
+    ELSIF TG_OP = 'DELETE' THEN
+        activity_desc := format('Sản phẩm bị xóa: %s (Mã: %s)', 
+                               OLD.product_name, OLD.product_code);
+        
+        INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+        VALUES ('PRODUCT_DELETED', activity_desc, 'products', OLD.product_id, CURRENT_TIMESTAMP);
+    END IF;
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8.2 Log Stock Transfer Activities
+CREATE OR REPLACE FUNCTION log_stock_transfer_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    product_name VARCHAR(200);
+    warehouse_name VARCHAR(100);
+    shelf_name VARCHAR(100);
+    activity_desc TEXT;
+BEGIN
+    -- Get product name
+    SELECT p.product_name INTO product_name
+    FROM products p WHERE p.product_id = NEW.product_id;
+    
+    -- Get warehouse name
+    SELECT w.warehouse_name INTO warehouse_name
+    FROM warehouses w WHERE w.warehouse_id = NEW.from_warehouse_id;
+    
+    -- Get shelf name
+    SELECT ds.shelf_name INTO shelf_name
+    FROM display_shelves ds WHERE ds.shelf_id = NEW.to_shelf_id;
+    
+    activity_desc := format('Chuyển hàng: %s từ kho %s lên quầy %s (SL: %s)', 
+                           product_name, warehouse_name, shelf_name, NEW.quantity);
+    
+    INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+    VALUES ('STOCK_TRANSFER', activity_desc, 'stock_transfers', NEW.transfer_id, CURRENT_TIMESTAMP);
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8.3 Log Sales Activities
+CREATE OR REPLACE FUNCTION log_sales_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    customer_name VARCHAR(100);
+    activity_desc TEXT;
+BEGIN
+    -- Get customer name if exists
+    IF NEW.customer_id IS NOT NULL THEN
+        SELECT c.full_name INTO customer_name
+        FROM customers c WHERE c.customer_id = NEW.customer_id;
+    ELSE
+        customer_name := 'Khách vãng lai';
+    END IF;
+    
+    activity_desc := format('Hóa đơn bán hàng: %s - Tổng tiền: %s VNĐ', 
+                           customer_name, NEW.total_amount);
+    
+    INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+    VALUES ('SALE_COMPLETED', activity_desc, 'sales_invoices', NEW.invoice_id, CURRENT_TIMESTAMP);
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8.4 Log Low Stock Alerts
+CREATE OR REPLACE FUNCTION log_low_stock_alert()
+RETURNS TRIGGER AS $$
+DECLARE
+    product_name VARCHAR(200);
+    activity_desc TEXT;
+BEGIN
+    -- Only log if stock just went below threshold
+    IF NEW.current_quantity <= (
+        SELECT low_stock_threshold FROM products WHERE product_id = NEW.product_id
+    ) AND (OLD IS NULL OR OLD.current_quantity > (
+        SELECT low_stock_threshold FROM products WHERE product_id = NEW.product_id
+    )) THEN
+        
+        SELECT p.product_name INTO product_name
+        FROM products p WHERE p.product_id = NEW.product_id;
+        
+        activity_desc := format('Cảnh báo hết hàng: %s - Số lượng hiện tại: %s', 
+                               product_name, NEW.current_quantity);
+        
+        INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+        VALUES ('LOW_STOCK_ALERT', activity_desc, 'shelf_inventory', NEW.product_id, CURRENT_TIMESTAMP);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8.5 Log Expiry Alerts
+CREATE OR REPLACE FUNCTION log_expiry_alert()
+RETURNS TRIGGER AS $$
+DECLARE
+    product_name VARCHAR(200);
+    activity_desc TEXT;
+    days_remaining INT;
+BEGIN
+    -- Only log if expiry date is within 7 days
+    IF NEW.expiry_date IS NOT NULL AND NEW.expiry_date <= CURRENT_DATE + INTERVAL '7 days' THEN
+        days_remaining := NEW.expiry_date - CURRENT_DATE;
+        
+        SELECT p.product_name INTO product_name
+        FROM products p WHERE p.product_id = NEW.product_id;
+        
+        activity_desc := format('Cảnh báo hết hạn: %s - Còn lại %s ngày (Hạn: %s)', 
+                               product_name, days_remaining, NEW.expiry_date);
+        
+        INSERT INTO activity_logs (activity_type, description, table_name, record_id, created_at)
+        VALUES ('EXPIRY_ALERT', activity_desc, 'shelf_batch_inventory', NEW.shelf_batch_id, CURRENT_TIMESTAMP);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================================
 -- 7. AUDIT AND TIMESTAMP TRIGGERS
 -- ============================================================================
 

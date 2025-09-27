@@ -429,11 +429,8 @@ func (s *StoreSimulation) createStockTransfer(product models.Product, warehouseI
 		return fmt.Errorf("failed to create transfer: %w", err)
 	}
 
-	// Update warehouse inventory (decrease)
-	if err := tx.Model(&warehouseInv).Update("quantity", gorm.Expr("quantity - ?", quantity)).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to update warehouse inventory: %w", err)
-	}
+	// Note: Warehouse inventory update is handled by database triggers
+	// No need to update manually here as the trigger will handle it
 
 	// Create or update shelf batch inventory
 	var shelfBatch models.ShelfBatchInventory

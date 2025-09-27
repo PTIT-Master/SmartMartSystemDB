@@ -1,0 +1,13 @@
+{{template "layouts/base" .}}
+
+<div class="card">
+    <div class="card-header">Lỗi {{.Code}}</div>
+    <div style="padding: 20px; text-align: center;">
+        <h2 style="color: #e74c3c; margin-bottom: 20px;">Đã xảy ra lỗi</h2>
+        <p style="font-size: 18px; color: #7f8c8d;">{{.Error}}</p>
+        <div style="margin-top: 30px;">
+            <a href="/" class="btn btn-primary">Về trang chủ</a>
+            <button onclick="history.back()" class="btn btn-warning">Quay lại</button>
+        </div>
+    </div>
+</div>

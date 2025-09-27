@@ -17,9 +17,11 @@ var DB *gorm.DB
 func Initialize(cfg *config.DatabaseConfig) error {
 	var err error
 
-	// Configure GORM
+	// Configure GORM with custom logger
 	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: &CustomGormLogger{
+			Interface: logger.Default.LogMode(logger.Info),
+		},
 		NowFunc: func() time.Time {
 			return time.Now().Local()
 		},

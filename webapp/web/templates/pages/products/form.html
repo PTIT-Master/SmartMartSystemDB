@@ -1,0 +1,115 @@
+{{template "layouts/base" .}}
+
+<div class="card">
+    <div class="card-header">
+        {{if .IsNew}}Thêm sản phẩm mới{{else}}Chỉnh sửa sản phẩm{{end}}
+    </div>
+    
+    <form method="POST" action="{{if .IsNew}}/products{{else}}/products/{{.Product.ProductID}}{{end}}">
+        {{if not .IsNew}}
+        <input type="hidden" name="_method" value="PUT">
+        {{end}}
+        
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label for="product_code">Mã sản phẩm *</label>
+                    <input type="text" id="product_code" name="product_code" 
+                           value="{{.Product.ProductCode}}" required>
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="product_name">Tên sản phẩm *</label>
+                    <input type="text" id="product_name" name="product_name" 
+                           value="{{.Product.ProductName}}" required>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label for="category_id">Danh mục *</label>
+                    <select id="category_id" name="category_id" required>
+                        <option value="">-- Chọn danh mục --</option>
+                        {{range .Categories}}
+                        <option value="{{.CategoryID}}" 
+                                {{if eq $.Product.CategoryID .CategoryID}}selected{{end}}>
+                            {{.CategoryName}}
+                        </option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="supplier_id">Nhà cung cấp *</label>
+                    <select id="supplier_id" name="supplier_id" required>
+                        <option value="">-- Chọn nhà cung cấp --</option>
+                        {{range .Suppliers}}
+                        <option value="{{.SupplierID}}" 
+                                {{if eq $.Product.SupplierID .SupplierID}}selected{{end}}>
+                            {{.CompanyName}}
+                        </option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label for="import_price">Giá nhập (VNĐ) *</label>
+                    <input type="number" id="import_price" name="import_price" 
+                           value="{{.Product.ImportPrice}}" min="0" step="0.01" required>
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="selling_price">Giá bán (VNĐ) *</label>
+                    <input type="number" id="selling_price" name="selling_price" 
+                           value="{{.Product.SellingPrice}}" min="0" step="0.01" required>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label for="min_stock_level">Mức tồn kho tối thiểu</label>
+                    <input type="number" id="min_stock_level" name="min_stock_level" 
+                           value="{{.Product.MinStockLevel}}" min="0">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="shelf_life_days">Hạn sử dụng (ngày)</label>
+                    <input type="number" id="shelf_life_days" name="shelf_life_days" 
+                           value="{{.Product.ShelfLifeDays}}" min="0">
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group" style="text-align: right;">
+            <a href="/products" class="btn btn-warning">Hủy</a>
+            <button type="submit" class="btn btn-primary">
+                {{if .IsNew}}Tạo sản phẩm{{else}}Cập nhật{{end}}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// Validate giá bán > giá nhập
+document.getElementById('selling_price').addEventListener('blur', function() {
+    var importPrice = parseFloat(document.getElementById('import_price').value) || 0;
+    var sellingPrice = parseFloat(this.value) || 0;
+    
+    if (sellingPrice <= importPrice) {
+        alert('Giá bán phải lớn hơn giá nhập!');
+        this.focus();
+    }
+});
+</script>

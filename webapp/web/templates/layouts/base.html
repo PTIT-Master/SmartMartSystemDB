@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Hệ thống quản lý siêu thị</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        /* SQL Debug Panel */
+        .sql-debug-panel {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            resize: vertical;
+            min-height: 35px;
+            max-height: 80vh;
+        }
+        .sql-debug-panel.collapsed {
+            height: 35px;
+            overflow: hidden;
+        }
+        .sql-debug-resize-handle {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #34495e;
+            cursor: ns-resize;
+            z-index: 10000;
+        }
+        .sql-debug-resize-handle:hover {
+            background: #3498db;
+        }
+        .sql-debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #34495e;
+        }
+        .sql-debug-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .sql-debug-controls {
+            display: flex;
+            gap: 10px;
+        }
+        .sql-debug-btn {
+            padding: 3px 10px;
+            background: #34495e;
+            color: #ecf0f1;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .sql-debug-btn:hover {
+            background: #2c3e50;
+        }
+        .sql-query {
+            background: #34495e;
+            padding: 5px 10px;
+            margin-bottom: 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sql-query-text {
+            flex: 1;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-right: 10px;
+        }
+        .sql-query-meta {
+            display: flex;
+            gap: 10px;
+            font-size: 10px;
+            color: #95a5a6;
+            white-space: nowrap;
+        }
+        .sql-duration {
+            color: #2ecc71;
+        }
+        .sql-rows {
+            color: #3498db;
+        }
+        .sql-error {
+            color: #e74c3c;
+        }
+        
+        /* Main Layout */
+        .container {
+            margin-top: 60px;
+            margin-bottom: 220px;
+            padding: 20px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Navigation */
+        nav {
+            background: #3498db;
+            padding: 10px 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9998;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            transition: background 0.3s;
+        }
+        nav a:hover {
+            background: #2980b9;
+        }
+        nav a.active {
+            background: #2c3e50;
+        }
+        
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #ecf0f1;
+            font-weight: bold;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 5px;
+            transition: background 0.3s;
+        }
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #27ae60;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        /* Alerts */
+        .alert {
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        /* Grid */
+        .row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .col {
+            flex: 1;
+        }
+        .col-2 { flex: 2; }
+        .col-3 { flex: 3; }
+        .col-4 { flex: 4; }
+        
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- SQL Debug Panel -->
+    <div class="sql-debug-panel" id="sqlDebugPanel">
+        <div class="sql-debug-resize-handle" id="sqlDebugResizeHandle"></div>
+        <div class="sql-debug-header">
+            <div class="sql-debug-title">
+                SQL Debug Panel - {{.TotalSQLQueries}} queries
+            </div>
+            <div class="sql-debug-controls">
+                <button class="sql-debug-btn" onclick="toggleDebugPanel()">Toggle</button>
+                <button class="sql-debug-btn" onclick="clearSQLLogs()">Clear</button>
+                <button class="sql-debug-btn" onclick="refreshSQLLogs()">Refresh</button>
+            </div>
+        </div>
+        <div id="sqlQueries">
+            {{range .SQLQueries}}
+            <div class="sql-query">
+                <div class="sql-query-text">{{.SQL}}</div>
+                <div class="sql-query-meta">
+                    <span class="sql-duration">{{formatDuration .Duration}}</span>
+                    <span class="sql-rows">{{.Rows}} rows</span>
+                    {{if .Error}}<span class="sql-error">{{.Error}}</span>{{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+        <ul>
+            <li><a href="/" {{if eq .Active "home"}}class="active"{{end}}>Trang chủ</a></li>
+            <li><a href="/products" {{if eq .Active "products"}}class="active"{{end}}>Sản phẩm</a></li>
+            <li><a href="/inventory" {{if eq .Active "inventory"}}class="active"{{end}}>Kho hàng</a></li>
+            <li><a href="/sales" {{if eq .Active "sales"}}class="active"{{end}}>Bán hàng</a></li>
+            <li><a href="/employees" {{if eq .Active "employees"}}class="active"{{end}}>Nhân viên</a></li>
+            <li><a href="/customers" {{if eq .Active "customers"}}class="active"{{end}}>Khách hàng</a></li>
+            <li><a href="/reports" {{if eq .Active "reports"}}class="active"{{end}}>Báo cáo</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        {{template "content" .}}
+    </div>
+
+    <script>
+        let isResizing = false;
+        let startY = 0;
+        let startHeight = 0;
+
+        function toggleDebugPanel() {
+            const panel = document.getElementById('sqlDebugPanel');
+            panel.classList.toggle('collapsed');
+        }
+
+        function clearSQLLogs() {
+            fetch('/api/debug/sql', { method: 'DELETE' })
+                .then(() => {
+                    document.getElementById('sqlQueries').innerHTML = '';
+                });
+        }
+
+        function refreshSQLLogs() {
+            fetch('/api/debug/sql')
+                .then(res => res.json())
+                .then(data => {
+                    const container = document.getElementById('sqlQueries');
+                    container.innerHTML = '';
+                    data.forEach(query => {
+                        const div = document.createElement('div');
+                        div.className = 'sql-query';
+                        div.innerHTML = `
+                            <div class="sql-query-text">${query.sql}</div>
+                            <div class="sql-query-meta">
+                                <span class="sql-duration">${formatDuration(query.duration)}</span>
+                                <span class="sql-rows">${query.rows} rows</span>
+                                ${query.error ? `<span class="sql-error">${query.error}</span>` : ''}
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                });
+        }
+
+        function formatDuration(nanos) {
+            const ms = nanos / 1000000;
+            if (ms < 1) {
+                return (nanos / 1000).toFixed(2) + 'µs';
+            }
+            return ms.toFixed(2) + 'ms';
+        }
+
+        // Resize functionality
+        function initResize() {
+            const resizeHandle = document.getElementById('sqlDebugResizeHandle');
+            const panel = document.getElementById('sqlDebugPanel');
+
+            resizeHandle.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                startY = e.clientY;
+                startHeight = parseInt(document.defaultView.getComputedStyle(panel).height, 10);
+                
+                document.addEventListener('mousemove', handleResize);
+                document.addEventListener('mouseup', stopResize);
+                
+                e.preventDefault();
+            });
+
+            function handleResize(e) {
+                if (!isResizing) return;
+                
+                const newHeight = startHeight - (e.clientY - startY);
+                const minHeight = 35;
+                const maxHeight = window.innerHeight * 0.8;
+                
+                if (newHeight >= minHeight && newHeight <= maxHeight) {
+                    panel.style.height = newHeight + 'px';
+                    panel.style.transition = 'none';
+                }
+            }
+
+            function stopResize() {
+                isResizing = false;
+                panel.style.transition = 'all 0.3s ease';
+                document.removeEventListener('mousemove', handleResize);
+                document.removeEventListener('mouseup', stopResize);
+            }
+        }
+
+        // Initialize resize functionality when page loads
+        document.addEventListener('DOMContentLoaded', initResize);
+
+        // Auto-refresh SQL logs every 2 seconds
+        setInterval(refreshSQLLogs, 2000);
+    </script>
+</body>
+</html>

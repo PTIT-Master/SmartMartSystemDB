@@ -40,16 +40,48 @@ func AutoMigrate(db *gorm.DB) error {
 		}
 
 		if !migrator.HasTable(model) {
-			// Create table without foreign keys using raw SQL to avoid GORM's auto FK creation
-			// We'll use GORM's CreateTable but without associations
-			if err := migrator.CreateTable(model); err != nil {
-				log.Printf("  ⚠ Warning: Could not create table %s: %v", tableName, err)
-				continue
+			// Special handling for shelf_batch_inventory table
+			if tableName == "shelf_batch_inventory" {
+				// Create this table manually without foreign keys
+				createSQL := `
+					CREATE TABLE IF NOT EXISTS shelf_batch_inventory (
+						shelf_batch_id BIGSERIAL PRIMARY KEY,
+						shelf_id BIGINT NOT NULL,
+						product_id BIGINT NOT NULL,
+						batch_code VARCHAR(50) NOT NULL,
+						quantity BIGINT NOT NULL CHECK (quantity >= 0),
+						expiry_date DATE,
+						stocked_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						import_price DECIMAL(12,2) NOT NULL,
+						current_price DECIMAL(12,2) NOT NULL,
+						discount_percent DECIMAL(5,2) DEFAULT 0,
+						is_near_expiry BOOLEAN DEFAULT false,
+						created_at TIMESTAMPTZ,
+						updated_at TIMESTAMPTZ
+					)
+				`
+				if err := db.Exec(createSQL).Error; err != nil {
+					log.Printf("  ⚠ Warning: Could not create table %s: %v", tableName, err)
+				} else {
+					log.Printf("  ✓ Created table: %s", tableName)
+				}
+			} else {
+				// Use GORM for other tables
+				if err := migrator.CreateTable(model); err != nil {
+					log.Printf("  ⚠ Warning: Could not create table %s: %v", tableName, err)
+					continue
+				}
+				log.Printf("  ✓ Created table: %s", tableName)
 			}
-			log.Printf("  ✓ Created table: %s", tableName)
 		} else {
 			log.Printf("  ✓ Table already exists: %s", tableName)
 		}
+	}
+
+	// Add unique constraints first (needed for composite foreign keys)
+	log.Println("Adding unique constraints...")
+	if err := AddUniqueConstraints(db); err != nil {
+		log.Printf("Warning: Some unique constraints could not be added: %v", err)
 	}
 
 	// Second pass: Create foreign key constraints manually
@@ -58,8 +90,8 @@ func AutoMigrate(db *gorm.DB) error {
 		log.Printf("Warning: Some foreign keys could not be created: %v", err)
 	}
 
-	// Add custom constraints that GORM doesn't handle
-	log.Println("Adding custom constraints...")
+	// Add other custom constraints that GORM doesn't handle
+	log.Println("Adding other custom constraints...")
 	if err := AddCustomConstraints(db); err != nil {
 		log.Printf("Warning: Some custom constraints could not be added: %v", err)
 	}
@@ -74,6 +106,12 @@ func AutoMigrate(db *gorm.DB) error {
 	log.Println("Creating database triggers...")
 	if err := CreateTriggers(db); err != nil {
 		log.Printf("Warning: Some triggers could not be created: %v", err)
+	}
+
+	// Create views and procedures
+	log.Println("Creating views and stored procedures...")
+	if err := CreateViewsAndProcedures(db); err != nil {
+		log.Printf("Warning: Some views or procedures could not be created: %v", err)
 	}
 
 	log.Println("GORM AutoMigrate completed successfully")
@@ -220,18 +258,56 @@ func CreateForeignKeys(db *gorm.DB) error {
 		}
 	}
 
+	// Add composite foreign keys
+	compositeForeignKeys := []struct {
+		table      string
+		name       string
+		columns    string
+		refTable   string
+		refColumns string
+	}{
+		// Composite foreign key for shelf_batch_inventory to shelf_inventory
+		{"shelf_batch_inventory", "fk_shelf_batch_inventory_shelf_inventory", "(shelf_id, product_id)", "shelf_inventory", "(shelf_id, product_id)"},
+	}
+
+	for _, fk := range compositeForeignKeys {
+		// Check if foreign key already exists
+		var count int64
+		db.Raw(`
+			SELECT COUNT(*) FROM information_schema.table_constraints 
+			WHERE constraint_type = 'FOREIGN KEY' 
+			AND table_schema = 'supermarket' 
+			AND table_name = ? 
+			AND constraint_name = ?
+		`, fk.table, fk.name).Scan(&count)
+
+		if count > 0 {
+			log.Printf("  ✓ Composite foreign key already exists: %s", fk.name)
+			continue
+		}
+
+		// Create composite foreign key
+		query := fmt.Sprintf(
+			"ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY %s REFERENCES %s%s",
+			fk.table, fk.name, fk.columns, fk.refTable, fk.refColumns,
+		)
+
+		if err := db.Exec(query).Error; err != nil {
+			log.Printf("  ⚠ Failed to create composite foreign key %s: %v", fk.name, err)
+		} else {
+			log.Printf("  ✓ Created composite foreign key: %s", fk.name)
+		}
+	}
+
 	return nil
 }
 
-// AddCustomConstraints adds database constraints that GORM doesn't handle automatically
-func AddCustomConstraints(db *gorm.DB) error {
+// AddUniqueConstraints adds unique constraints to tables (needed before foreign keys)
+func AddUniqueConstraints(db *gorm.DB) error {
 	constraints := []struct {
 		name  string
 		query string
 	}{
-		// Check constraint for product prices
-		{"check_price", "ALTER TABLE products ADD CONSTRAINT check_price CHECK (selling_price > import_price)"},
-
 		// Unique constraints for compound keys
 		{"unique_batch", "ALTER TABLE warehouse_inventory ADD CONSTRAINT unique_batch UNIQUE (warehouse_id, product_id, batch_code)"},
 		{"unique_shelf_position", "ALTER TABLE shelf_layout ADD CONSTRAINT unique_shelf_position UNIQUE (shelf_id, position_code)"},
@@ -240,6 +316,30 @@ func AddCustomConstraints(db *gorm.DB) error {
 		{"unique_shelf_batch", "ALTER TABLE shelf_batch_inventory ADD CONSTRAINT unique_shelf_batch UNIQUE (shelf_id, product_id, batch_code)"},
 		{"unique_employee_date", "ALTER TABLE employee_work_hours ADD CONSTRAINT unique_employee_date UNIQUE (employee_id, work_date)"},
 		{"unique_category_days", "ALTER TABLE discount_rules ADD CONSTRAINT unique_category_days UNIQUE (category_id, days_before_expiry)"},
+	}
+
+	for _, c := range constraints {
+		if err := db.Exec(c.query).Error; err != nil {
+			// Check if constraint already exists (PostgreSQL error code 42710)
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "42710") {
+				log.Printf("  ⚠ Failed to add unique constraint %s: %v", c.name, err)
+			}
+		} else {
+			log.Printf("  ✓ Added unique constraint: %s", c.name)
+		}
+	}
+
+	return nil
+}
+
+// AddCustomConstraints adds database constraints that GORM doesn't handle automatically (other than unique constraints)
+func AddCustomConstraints(db *gorm.DB) error {
+	constraints := []struct {
+		name  string
+		query string
+	}{
+		// Check constraint for product prices
+		{"check_price", "ALTER TABLE products ADD CONSTRAINT check_price CHECK (selling_price > import_price)"},
 	}
 
 	for _, c := range constraints {
@@ -330,6 +430,15 @@ func CreateTriggers(db *gorm.DB) error {
 		log.Printf("Successfully created triggers from %d files", successCount)
 	}
 
+	return nil
+}
+
+// CreateViewsAndProcedures creates database views and stored procedures
+func CreateViewsAndProcedures(db *gorm.DB) error {
+	if err := executeSQLFile(db, "views_procedures.sql"); err != nil {
+		return fmt.Errorf("failed to create views and procedures: %w", err)
+	}
+	log.Println("  ✓ Created views and stored procedures")
 	return nil
 }
 

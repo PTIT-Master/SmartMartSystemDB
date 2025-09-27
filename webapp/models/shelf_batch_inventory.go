@@ -19,9 +19,9 @@ type ShelfBatchInventory struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 
-	// Relationships
-	Shelf   DisplayShelf `gorm:"foreignKey:ShelfID;references:ShelfID" json:"shelf,omitempty"`
-	Product Product      `gorm:"foreignKey:ProductID;references:ProductID" json:"product,omitempty"`
+	// Relationships (foreign keys are handled manually in migration)
+	Shelf   DisplayShelf `gorm:"foreignKey:ShelfID;references:ShelfID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"shelf,omitempty"`
+	Product Product      `gorm:"foreignKey:ProductID;references:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"product,omitempty"`
 }
 
 // TableName specifies the table name for ShelfBatchInventory

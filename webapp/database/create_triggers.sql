@@ -151,6 +151,45 @@ CREATE TRIGGER tr_apply_expiry_discounts
     EXECUTE FUNCTION apply_expiry_discounts();
 
 -- ============================================================================
+-- 8. ACTIVITY LOGGING TRIGGERS
+-- ============================================================================
+
+-- 8.1 Product Activity Logging
+DROP TRIGGER IF EXISTS tr_log_product_activity ON products;
+CREATE TRIGGER tr_log_product_activity
+    AFTER INSERT OR UPDATE OR DELETE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION log_product_activity();
+
+-- 8.2 Stock Transfer Activity Logging
+DROP TRIGGER IF EXISTS tr_log_stock_transfer_activity ON stock_transfers;
+CREATE TRIGGER tr_log_stock_transfer_activity
+    AFTER INSERT ON stock_transfers
+    FOR EACH ROW
+    EXECUTE FUNCTION log_stock_transfer_activity();
+
+-- 8.3 Sales Activity Logging
+DROP TRIGGER IF EXISTS tr_log_sales_activity ON sales_invoices;
+CREATE TRIGGER tr_log_sales_activity
+    AFTER INSERT ON sales_invoices
+    FOR EACH ROW
+    EXECUTE FUNCTION log_sales_activity();
+
+-- 8.4 Low Stock Alert Logging
+DROP TRIGGER IF EXISTS tr_log_low_stock_alert ON shelf_inventory;
+CREATE TRIGGER tr_log_low_stock_alert
+    AFTER UPDATE ON shelf_inventory
+    FOR EACH ROW
+    EXECUTE FUNCTION log_low_stock_alert();
+
+-- 8.5 Expiry Alert Logging
+DROP TRIGGER IF EXISTS tr_log_expiry_alert ON shelf_batch_inventory;
+CREATE TRIGGER tr_log_expiry_alert
+    AFTER INSERT OR UPDATE ON shelf_batch_inventory
+    FOR EACH ROW
+    EXECUTE FUNCTION log_expiry_alert();
+
+-- ============================================================================
 -- 7. AUDIT AND TIMESTAMP TRIGGERS
 -- ============================================================================
 

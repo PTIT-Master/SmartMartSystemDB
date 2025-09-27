@@ -9,6 +9,7 @@ import (
 
 	"github.com/supermarket/config"
 	"github.com/supermarket/database"
+	"github.com/supermarket/web"
 )
 
 func main() {
@@ -61,7 +62,15 @@ func main() {
 		log.Println("Database seeded successfully")
 	}
 
-	log.Printf("Server starting on port %s in %s mode", cfg.App.Port, cfg.App.Environment)
+	// Create and start web server
+	server := web.NewServer()
+
+	// Start server in a goroutine
+	go func() {
+		if err := server.Start(cfg.App.Port); err != nil {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
 
 	// Setup graceful shutdown
 	quit := make(chan os.Signal, 1)

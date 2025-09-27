@@ -158,6 +158,11 @@ func SeedData(db *gorm.DB) error {
 			return fmt.Errorf("failed to seed employee work hours: %w", err)
 		}
 
+		// 14. Seed Dashboard Test Data
+		if err := seedDashboardTestData(tx); err != nil {
+			return fmt.Errorf("failed to seed dashboard test data: %w", err)
+		}
+
 		log.Println("✅ Database seeded successfully!")
 		return nil
 	})

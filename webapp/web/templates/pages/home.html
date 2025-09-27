@@ -1,0 +1,225 @@
+{{template "layouts/base" .}}
+
+{{define "content"}}
+<style>
+.table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.table-container table {
+    margin: 0;
+    border: none;
+}
+
+.table-container thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card-subtitle {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 1rem;
+    font-style: italic;
+}
+
+.badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.badge-success { background-color: #d4edda; color: #155724; }
+.badge-warning { background-color: #fff3cd; color: #856404; }
+.badge-danger { background-color: #f8d7da; color: #721c24; }
+
+.row { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+.col { flex: 1; }
+
+@media (max-width: 768px) {
+    .row { flex-direction: column; }
+    .table-container { max-height: 300px; }
+}
+</style>
+<h1>Hệ thống quản lý siêu thị</h1>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{.TotalProducts}}</div>
+        <div class="stat-label">Sản phẩm</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{.TotalEmployees}}</div>
+        <div class="stat-label">Nhân viên</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{.TotalCustomers}}</div>
+        <div class="stat-label">Khách hàng</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{formatCurrency .TodayRevenue}}</div>
+        <div class="stat-label">Doanh thu hôm nay</div>
+    </div>
+</div>
+
+<!-- Row 1: Low Shelf Products & Warehouse Empty Products -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">🔄 Cần bổ sung lên kệ</div>
+            <div class="card-subtitle">Sản phẩm sắp hết trên quầy (nhưng còn hàng trong kho)</div>
+            <div class="table-container">
+                <table>
+                <thead>
+                    <tr>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>SL Quầy</th>
+                        <th>SL Kho</th>
+                        <th>% Điền</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .LowShelfProducts}}
+                    <tr>
+                        <td><code>{{.Code}}</code></td>
+                        <td>{{.Name}}</td>
+                        <td><span class="badge badge-warning">{{.ShelfQty}}</span></td>
+                        <td><span class="badge badge-success">{{.WarehouseQty}}</span></td>
+                        <td>{{printf "%.1f%%" .FillPercentage}}</td>
+                        <td>
+                            <a href="/inventory/transfer?product={{.ID}}" class="btn btn-sm btn-warning">Chuyển hàng</a>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="6" style="text-align: center;">✅ Tất cả sản phẩm trên kệ đều đủ</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col">
+        <div class="card">
+            <div class="card-header">🚨 Cần nhập kho</div>
+            <div class="card-subtitle">Sản phẩm hết kho nhưng còn trên quầy</div>
+            <div class="table-container">
+                <table>
+                <thead>
+                    <tr>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>SL Quầy</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .WarehouseEmptyProducts}}
+                    <tr>
+                        <td><code>{{.Code}}</code></td>
+                        <td>{{.Name}}</td>
+                        <td><span class="badge">{{.CategoryName}}</span></td>
+                        <td><span class="badge badge-danger">{{.ShelfQty}}</span></td>
+                        <td>
+                            <a href="/purchase-orders/create?product={{.ID}}" class="btn btn-sm btn-danger">Đặt hàng</a>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="5" style="text-align: center;">✅ Tất cả sản phẩm đều còn trong kho</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Expiring Products -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">⏰ Sản phẩm sắp hết hạn</div>
+            <div class="table-container">
+                <table>
+                <thead>
+                    <tr>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Ngày hết hạn</th>
+                        <th>Còn lại</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ExpiringProducts}}
+                    <tr>
+                        <td><code>{{.Code}}</code></td>
+                        <td>{{.Name}}</td>
+                        <td>{{.ExpiryDate}}</td>
+                        <td>
+                            {{if le .DaysRemaining 3}}
+                                <span class="badge badge-danger">{{.DaysRemaining}} ngày</span>
+                            {{else if le .DaysRemaining 7}}
+                                <span class="badge badge-warning">{{.DaysRemaining}} ngày</span>
+                            {{else}}
+                                <span class="badge">{{.DaysRemaining}} ngày</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <a href="/products/{{.ID}}/discount" class="btn btn-sm btn-warning">Giảm giá</a>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="5" style="text-align: center;">✅ Không có sản phẩm sắp hết hạn</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Hoạt động gần đây</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Thời gian</th>
+                <th>Loại</th>
+                <th>Mô tả</th>
+                <th>Người thực hiện</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .RecentActivities}}
+            <tr>
+                <td>{{.Timestamp}}</td>
+                <td>{{.Type}}</td>
+                <td>{{.Description}}</td>
+                <td>{{.User}}</td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="4" style="text-align: center;">Chưa có hoạt động nào</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
