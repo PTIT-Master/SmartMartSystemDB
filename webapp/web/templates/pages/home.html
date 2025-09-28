@@ -145,7 +145,7 @@
     </div>
 </div>
 
-<!-- Row 2: Expiring Products -->
+<!-- Row 2: Expiring Products & Expired Products -->
 <div class="row">
     <div class="col">
         <div class="card">
@@ -183,6 +183,44 @@
                     {{else}}
                     <tr>
                         <td colspan="5" style="text-align: center;">✅ Không có sản phẩm sắp hết hạn</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col">
+        <div class="card">
+            <div class="card-header">⚠️ Sản phẩm đã hết hạn</div>
+            <div class="table-container">
+                <table>
+                <thead>
+                    <tr>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Ngày hết hạn</th>
+                        <th>Trạng thái</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ExpiredProducts}}
+                    <tr>
+                        <td><code>{{.Code}}</code></td>
+                        <td>{{.Name}}</td>
+                        <td>{{.ExpiryDate}}</td>
+                        <td>
+                            <span class="badge badge-danger">Hết hạn {{.DaysRemaining}} ngày</span>
+                        </td>
+                        <td>
+                            <a href="/products/{{.ID}}/remove" class="btn btn-sm btn-danger">Loại bỏ</a>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="5" style="text-align: center;">✅ Không có sản phẩm hết hạn</td>
                     </tr>
                     {{end}}
                 </tbody>

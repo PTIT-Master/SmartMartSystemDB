@@ -95,7 +95,7 @@ func HomePage(c *fiber.Ctx) error {
 		ORDER BY shelf_quantity DESC
 	`).Scan(&warehouseEmptyProducts)
 
-	// Get expiring products using VIEW
+	// Get expiring products using VIEW (sắp hết hạn)
 	var expiringProducts []struct {
 		Code          string
 		Name          string
@@ -115,6 +115,27 @@ func HomePage(c *fiber.Ctx) error {
 		WHERE days_remaining > 0
 		ORDER BY days_remaining ASC
 	`).Scan(&expiringProducts)
+
+	// Get expired products using VIEW (đã hết hạn)
+	var expiredProducts []struct {
+		Code          string
+		Name          string
+		ID            uint
+		ExpiryDate    string
+		DaysRemaining int
+	}
+
+	db.Raw(`
+		SELECT 
+			product_code as code,
+			product_name as name,
+			product_id as id,
+			expiry_date::text as expiry_date,
+			days_remaining
+		FROM supermarket.v_expiring_products
+		WHERE days_remaining <= 0
+		ORDER BY days_remaining ASC
+	`).Scan(&expiredProducts)
 
 	// Get recent activities from database
 	var recentActivities []struct {
@@ -153,7 +174,8 @@ func HomePage(c *fiber.Ctx) error {
 		"LowStockProducts":       lowStockProducts,
 		"LowShelfProducts":       lowShelfProducts,       // Products needing shelf restock
 		"WarehouseEmptyProducts": warehouseEmptyProducts, // Products with empty warehouse
-		"ExpiringProducts":       expiringProducts,
+		"ExpiringProducts":       expiringProducts,       // Products sắp hết hạn
+		"ExpiredProducts":        expiredProducts,        // Products đã hết hạn
 		"RecentActivities":       recentActivities,
 		"SQLQueries":             c.Locals("SQLQueries"),
 		"TotalSQLQueries":        c.Locals("TotalSQLQueries"),
