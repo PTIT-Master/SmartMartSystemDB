@@ -1,5 +1,3 @@
-{{template "layouts/base" .}}
-
 <div class="card">
     <div class="card-header">
         {{if .IsNew}}Thêm sản phẩm mới{{else}}Chỉnh sửa sản phẩm{{end}}
@@ -50,7 +48,7 @@
                         {{range .Suppliers}}
                         <option value="{{.SupplierID}}" 
                                 {{if eq $.Product.SupplierID .SupplierID}}selected{{end}}>
-                            {{.CompanyName}}
+                            {{.SupplierName}}
                         </option>
                         {{end}}
                     </select>
@@ -102,14 +100,25 @@
 </div>
 
 <script>
-// Validate giá bán > giá nhập
-document.getElementById('selling_price').addEventListener('blur', function() {
-    var importPrice = parseFloat(document.getElementById('import_price').value) || 0;
-    var sellingPrice = parseFloat(this.value) || 0;
+// Validate giá bán > giá nhập khi submit form
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const sellingPriceInput = document.getElementById('selling_price');
+    const importPriceInput = document.getElementById('import_price');
     
-    if (sellingPrice <= importPrice) {
-        alert('Giá bán phải lớn hơn giá nhập!');
-        this.focus();
+    if (form && sellingPriceInput && importPriceInput) {
+        form.addEventListener('submit', function(e) {
+            var importPrice = parseFloat(importPriceInput.value) || 0;
+            var sellingPrice = parseFloat(sellingPriceInput.value) || 0;
+            
+            if (sellingPrice > 0 && importPrice > 0 && sellingPrice <= importPrice) {
+                e.preventDefault(); // Ngăn submit form
+                alert('Giá bán phải lớn hơn giá nhập!');
+                sellingPriceInput.focus();
+                sellingPriceInput.select();
+                return false;
+            }
+        });
     }
 });
 </script>

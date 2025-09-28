@@ -1,5 +1,7 @@
 # Đề tài 10: Xây dựng Hệ CSDL quản lý siêu thị bán lẻ
 
+## vì là môn học database nên hạn chế sử lý bằng code mà thay vào đó sử lý bằng triger, view, procedue
+
 ## Các yêu cầu tối thiểu về CSDL bao gồm
 
 - Thông tin cơ bản về nhân viên, các hàng hóa thuộc các chủng loại

@@ -1,0 +1,75 @@
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Danh sách quầy trưng bày</span>
+            <div>
+                <a href="/products/shelves/new" class="btn btn-success">+ Thêm quầy trưng bày</a>
+                <a href="/products/shelf-layouts" class="btn btn-info">Bố trí quầy</a>
+                <a href="/products" class="btn btn-primary">Quay lại sản phẩm</a>
+            </div>
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Mã quầy</th>
+                <th>Tên quầy</th>
+                <th>Danh mục</th>
+                <th>Vị trí</th>
+                <th>Sức chứa tối đa</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Shelves}}
+            <tr>
+                <td>{{.ShelfCode}}</td>
+                <td>{{.ShelfName}}</td>
+                <td>{{.CategoryName}}</td>
+                <td>{{if .Location}}{{.Location}}{{else}}-{{end}}</td>
+                <td>{{if .MaxCapacity}}{{.MaxCapacity}}{{else}}-{{end}}</td>
+                <td>
+                    {{if .IsActive}}
+                        <span class="badge badge-success">Hoạt động</span>
+                    {{else}}
+                        <span class="badge badge-secondary">Không hoạt động</span>
+                    {{end}}
+                </td>
+                <td>
+                    <a href="/products/shelves/{{.ShelfID}}" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;">Xem</a>
+                    <a href="/products/shelves/{{.ShelfID}}/edit" class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;">Sửa</a>
+                    <button onclick="deleteShelf({{.ShelfID}})" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;">Xóa</button>
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="7" style="text-align: center;">Không có quầy trưng bày nào</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function deleteShelf(id) {
+    if (confirm('Bạn có chắc chắn muốn xóa quầy trưng bày này?')) {
+        fetch('/products/shelves/' + id, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Không thể xóa quầy trưng bày');
+                });
+            }
+        })
+        .catch(error => {
+            alert('Lỗi: ' + error);
+        });
+    }
+}
+</script>

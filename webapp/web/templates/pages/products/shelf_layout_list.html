@@ -1,0 +1,66 @@
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Danh sách bố trí quầy</span>
+            <div>
+                <a href="/products/shelf-layouts/new" class="btn btn-success">+ Thêm bố trí quầy</a>
+                <a href="/products/shelves" class="btn btn-primary">Quay lại quầy trưng bày</a>
+            </div>
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Quầy</th>
+                <th>Sản phẩm</th>
+                <th>Mã vị trí</th>
+                <th>Số lượng tối đa</th>
+                <th>Ngày tạo</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Layouts}}
+            <tr>
+                <td>{{.ShelfName}}</td>
+                <td>{{.ProductName}}</td>
+                <td>{{.PositionCode}}</td>
+                <td>{{.MaxQuantity}}</td>
+                <td>{{formatDate .CreatedAt}}</td>
+                <td>
+                    <a href="/products/shelf-layouts/{{.LayoutID}}" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;">Xem</a>
+                    <a href="/products/shelf-layouts/{{.LayoutID}}/edit" class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;">Sửa</a>
+                    <button onclick="deleteLayout({{.LayoutID}})" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;">Xóa</button>
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="6" style="text-align: center;">Không có bố trí quầy nào</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function deleteLayout(id) {
+    if (confirm('Bạn có chắc chắn muốn xóa bố trí quầy này?')) {
+        fetch('/products/shelf-layouts/' + id, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Không thể xóa bố trí quầy');
+                });
+            }
+        })
+        .catch(error => {
+            alert('Lỗi: ' + error);
+        });
+    }
+}
+</script>

@@ -157,7 +157,7 @@ func HomePage(c *fiber.Ctx) error {
 		"RecentActivities":       recentActivities,
 		"SQLQueries":             c.Locals("SQLQueries"),
 		"TotalSQLQueries":        c.Locals("TotalSQLQueries"),
-	})
+	}, "layouts/base")
 }
 
 // GetSQLLogs returns SQL logs as JSON

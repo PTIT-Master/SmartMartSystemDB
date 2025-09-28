@@ -1,10 +1,11 @@
-{{template "layouts/base" .}}
-
 <div class="card">
     <div class="card-header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span>Danh sách sản phẩm</span>
-            <a href="/products/new" class="btn btn-success">+ Thêm sản phẩm</a>
+            <div>
+                <a href="/products/new" class="btn btn-success">+ Thêm sản phẩm</a>
+                <a href="/products/shelves" class="btn btn-info">+ Quầy trưng bày</a>
+            </div>
         </div>
     </div>
     
@@ -71,3 +72,5 @@ function deleteProduct(id) {
     }
 }
 </script>
+
+

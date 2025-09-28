@@ -1,0 +1,107 @@
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Chi tiết bố trí quầy</span>
+            <div>
+                <a href="/products/shelf-layouts/{{.Layout.LayoutID}}/edit" class="btn btn-warning">Chỉnh sửa</a>
+                <a href="/products/shelf-layouts" class="btn btn-secondary">Quay lại</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Thông tin bố trí</h5>
+                <table class="table table-striped">
+                    <tr>
+                        <td><strong>Quầy trưng bày:</strong></td>
+                        <td>{{.Layout.ShelfName}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sản phẩm:</strong></td>
+                        <td>{{.Layout.ProductName}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mã vị trí:</strong></td>
+                        <td>{{.Layout.PositionCode}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Số lượng tối đa:</strong></td>
+                        <td>{{.Layout.MaxQuantity}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ngày tạo:</strong></td>
+                        <td>{{formatDate .Layout.CreatedAt}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cập nhật lần cuối:</strong></td>
+                        <td>{{formatDate .Layout.UpdatedAt}}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="col-md-6">
+                <h5>Tồn kho hiện tại</h5>
+                <table class="table table-striped">
+                    <tr>
+                        <td><strong>Số lượng hiện tại:</strong></td>
+                        <td>
+                            <span class="badge badge-info">{{.Inventory.CurrentQuantity}}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sắp hết hạn:</strong></td>
+                        <td>
+                            {{if gt .Inventory.NearExpiryQuantity 0}}
+                                <span class="badge badge-warning">{{.Inventory.NearExpiryQuantity}}</span>
+                            {{else}}
+                                <span class="badge badge-success">0</span>
+                            {{end}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Đã hết hạn:</strong></td>
+                        <td>
+                            {{if gt .Inventory.ExpiredQuantity 0}}
+                                <span class="badge badge-danger">{{.Inventory.ExpiredQuantity}}</span>
+                            {{else}}
+                                <span class="badge badge-success">0</span>
+                            {{end}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Dung lượng sử dụng:</strong></td>
+                        <td>
+                            {{if gt .Layout.MaxQuantity 0}}
+                                {{$percentage := div (mul .Inventory.CurrentQuantity 100) .Layout.MaxQuantity}}
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {{if gt $percentage 80}}bg-danger{{else if gt $percentage 60}}bg-warning{{else}}bg-success{{end}}" 
+                                         style="width: {{$percentage}}%">
+                                        {{$percentage}}%
+                                    </div>
+                                </div>
+                            {{else}}
+                                <span class="text-muted">Không giới hạn</span>
+                            {{end}}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <h5>Hướng dẫn sử dụng</h5>
+                <div class="alert alert-info">
+                    <ul class="mb-0">
+                        <li><strong>Mã vị trí:</strong> Định danh duy nhất cho vị trí cụ thể trên quầy (VD: A1, B2, C3)</li>
+                        <li><strong>Số lượng tối đa:</strong> Giới hạn số lượng sản phẩm có thể đặt tại vị trí này</li>
+                        <li><strong>Tồn kho:</strong> Hiển thị số lượng thực tế đang có tại vị trí này</li>
+                        <li><strong>Dung lượng:</strong> Phần trăm sử dụng so với giới hạn tối đa</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

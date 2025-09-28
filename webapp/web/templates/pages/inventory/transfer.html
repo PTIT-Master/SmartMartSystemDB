@@ -1,0 +1,179 @@
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-exchange-alt"></i> Chuyển hàng từ kho lên quầy
+    </div>
+    
+    <form method="POST" action="/inventory/transfer" id="transferForm">
+        <div class="row">
+            {{if .SelectedProduct}}
+            <!-- Pre-selected product -->
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle"></i> Sản phẩm đã chọn</h5>
+                    <p><strong>{{.SelectedProduct.ProductName}}</strong> ({{.SelectedProduct.ProductCode}})</p>
+                    <p>Danh mục: {{.SelectedProduct.CategoryName}} | Tồn kho: {{.SelectedProduct.WarehouseQuantity}} sản phẩm</p>
+                </div>
+                <input type="hidden" name="product_id" value="{{.SelectedProduct.ProductID}}">
+            </div>
+            {{else}}
+            <!-- Product selection -->
+            <div class="col-12">
+                <div class="form-group">
+                    <label for="product_id">Sản phẩm *</label>
+                    <select id="product_id" name="product_id" required>
+                        <option value="">-- Chọn sản phẩm --</option>
+                        {{range .Products}}
+                        <option value="{{.ProductID}}">{{.ProductName}} ({{.ProductCode}}) - {{.CategoryName}}</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+            {{end}}
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="from_warehouse_id">Kho nguồn *</label>
+                    <select id="from_warehouse_id" name="from_warehouse_id" required>
+                        <option value="">-- Chọn kho --</option>
+                        {{range .Warehouses}}
+                        <option value="{{.WarehouseID}}">{{.WarehouseName}} ({{.WarehouseCode}})</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="to_shelf_id">Quầy đích *</label>
+                    <select id="to_shelf_id" name="to_shelf_id" required>
+                        <option value="">-- Chọn quầy --</option>
+                        {{range .Shelves}}
+                        <option value="{{.ShelfID}}">{{.ShelfName}} - {{.CategoryName}}</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="quantity">Số lượng *</label>
+                    <input type="number" id="quantity" name="quantity" min="1" required>
+                    <small class="form-text text-muted">Số lượng cần chuyển</small>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="employee_id">Nhân viên thực hiện *</label>
+                    <select id="employee_id" name="employee_id" required>
+                        <option value="">-- Chọn nhân viên --</option>
+                        {{range .Employees}}
+                        <option value="{{.EmployeeID}}">{{.FullName}} ({{.EmployeeCode}})</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        {{if .WarehouseInventory}}
+        <!-- Show warehouse inventory details for selected product -->
+        <div class="row">
+            <div class="col-12">
+                <h6>Tồn kho theo lô hàng:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Kho</th>
+                                <th>Mã lô</th>
+                                <th>Số lượng</th>
+                                <th>Hạn sử dụng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .WarehouseInventory}}
+                            <tr>
+                                <td>{{.WarehouseName}}</td>
+                                <td>{{.BatchCode}}</td>
+                                <td>{{.Quantity}}</td>
+                                <td>
+                                    {{if .ExpiryDate}}
+                                        {{formatDate .ExpiryDate}}
+                                    {{else}}
+                                        Không có hạn
+                                    {{end}}
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <div class="row">
+            <div class="col-12">
+                <div class="form-group">
+                    <label for="notes">Ghi chú</label>
+                    <textarea id="notes" name="notes" rows="3" placeholder="Ghi chú về việc chuyển hàng..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-check"></i> Thực hiện chuyển hàng
+            </button>
+            <a href="/inventory" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Hủy bỏ
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('transferForm');
+    const warehouseSelect = document.getElementById('from_warehouse_id');
+    const productSelect = document.getElementById('product_id');
+    const shelfSelect = document.getElementById('to_shelf_id');
+    const quantityInput = document.getElementById('quantity');
+
+    // Handle form submission
+    form.addEventListener('submit', function(e) {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+        
+        // Let the form submit normally, but show loading state
+        // Don't prevent default - let server handle the redirect
+        setTimeout(() => {
+            // Reset button state after a delay in case of error
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }, 5000);
+    });
+
+    // Validate shelf category matches product category  
+    shelfSelect.addEventListener('change', function() {
+        // This validation will be handled by database triggers
+        // but we can add client-side validation here if needed
+    });
+
+    // Validate quantity limits
+    quantityInput.addEventListener('input', function() {
+        const qty = parseInt(this.value);
+        if (qty < 1) {
+            this.setCustomValidity('Số lượng phải lớn hơn 0');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+});
+</script>

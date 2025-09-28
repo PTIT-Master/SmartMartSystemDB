@@ -1,0 +1,95 @@
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Chi tiết quầy trưng bày</span>
+            <div>
+                <a href="/products/shelves/{{.Shelf.ShelfID}}/edit" class="btn btn-warning">Chỉnh sửa</a>
+                <a href="/products/shelves" class="btn btn-secondary">Quay lại</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Thông tin cơ bản</h5>
+                <table class="table table-striped">
+                    <tr>
+                        <td><strong>Mã quầy:</strong></td>
+                        <td>{{.Shelf.ShelfCode}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tên quầy:</strong></td>
+                        <td>{{.Shelf.ShelfName}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Danh mục:</strong></td>
+                        <td>{{.Shelf.CategoryName}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Vị trí:</strong></td>
+                        <td>{{if .Shelf.Location}}{{.Shelf.Location}}{{else}}-{{end}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sức chứa tối đa:</strong></td>
+                        <td>{{if .Shelf.MaxCapacity}}{{.Shelf.MaxCapacity}}{{else}}-{{end}}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Trạng thái:</strong></td>
+                        <td>
+                            {{if .Shelf.IsActive}}
+                                <span class="badge badge-success">Hoạt động</span>
+                            {{else}}
+                                <span class="badge badge-secondary">Không hoạt động</span>
+                            {{end}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ngày tạo:</strong></td>
+                        <td>{{formatDate .Shelf.CreatedAt}}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="col-md-6">
+                <h5>Tồn kho hiện tại</h5>
+                {{if .Inventory}}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Sản phẩm</th>
+                            <th>Số lượng</th>
+                            <th>Sắp hết hạn</th>
+                            <th>Đã hết hạn</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Inventory}}
+                        <tr>
+                            <td>{{.ProductName}}</td>
+                            <td>{{.CurrentQuantity}}</td>
+                            <td>
+                                {{if gt .NearExpiryQuantity 0}}
+                                    <span class="badge badge-warning">{{.NearExpiryQuantity}}</span>
+                                {{else}}
+                                    -
+                                {{end}}
+                            </td>
+                            <td>
+                                {{if gt .ExpiredQuantity 0}}
+                                    <span class="badge badge-danger">{{.ExpiredQuantity}}</span>
+                                {{else}}
+                                    -
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+                {{else}}
+                <p class="text-muted">Chưa có sản phẩm nào trên quầy này</p>
+                {{end}}
+            </div>
+        </div>
+    </div>
+</div>

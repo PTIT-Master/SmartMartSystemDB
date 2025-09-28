@@ -1,0 +1,65 @@
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>{{if .IsNew}}Thêm bố trí quầy mới{{else}}Chỉnh sửa bố trí quầy{{end}}</span>
+            <a href="/products/shelf-layouts" class="btn btn-secondary">Quay lại</a>
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <form method="POST" action="{{if .IsNew}}/products/shelf-layouts{{else}}/products/shelf-layouts/{{.Layout.LayoutID}}{{end}}">
+            {{if not .IsNew}}
+            <input type="hidden" name="_method" value="PUT">
+            {{end}}
+            
+            <div class="form-group">
+                <label for="shelf_id">Quầy trưng bày *</label>
+                <select id="shelf_id" name="shelf_id" required class="form-control">
+                    <option value="">Chọn quầy</option>
+                    {{range .Shelves}}
+                    <option value="{{.ShelfID}}" 
+                            {{if not $.IsNew}}{{if eq $.Layout.ShelfID .ShelfID}}selected{{end}}{{end}}>
+                        {{.ShelfName}} ({{.ShelfCode}})
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="product_id">Sản phẩm *</label>
+                <select id="product_id" name="product_id" required class="form-control">
+                    <option value="">Chọn sản phẩm</option>
+                    {{range .Products}}
+                    <option value="{{.ProductID}}" 
+                            {{if not $.IsNew}}{{if eq $.Layout.ProductID .ProductID}}selected{{end}}{{end}}>
+                        {{.ProductName}} ({{.ProductCode}})
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="position_code">Mã vị trí *</label>
+                <input type="text" id="position_code" name="position_code" 
+                       value="{{if not .IsNew}}{{.Layout.PositionCode}}{{end}}" 
+                       required class="form-control" placeholder="VD: A1, B2, C3">
+                <small class="form-text text-muted">Mã định danh vị trí cụ thể trên quầy</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="max_quantity">Số lượng tối đa *</label>
+                <input type="number" id="max_quantity" name="max_quantity" 
+                       value="{{if not .IsNew}}{{.Layout.MaxQuantity}}{{end}}" 
+                       min="1" required class="form-control" placeholder="VD: 50">
+                <small class="form-text text-muted">Số lượng sản phẩm tối đa có thể đặt tại vị trí này</small>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {{if .IsNew}}Tạo bố trí quầy{{else}}Cập nhật{{end}}
+                </button>
+                <a href="/products/shelf-layouts" class="btn btn-secondary">Hủy</a>
+            </div>
+        </form>
+    </div>
+</div>

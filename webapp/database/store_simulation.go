@@ -260,9 +260,23 @@ func (s *StoreSimulation) processInitialPurchaseOrders() error {
 
 			totalAmount += subtotal
 
-			// Create warehouse inventory entry
+			// Create warehouse inventory entry with varying expiry dates
 			batchCode := fmt.Sprintf("BATCH%s%04d", s.currentDate.Format("20060102"), product.ProductID)
-			expiryDate := s.currentDate.AddDate(0, 3, 0) // 3 months expiry for most products
+
+			// Create different expiry scenarios for testing using current time
+			var expiryDate time.Time
+			now := time.Now()
+			scenarioRand := rand.Float64()
+			switch {
+			case scenarioRand < 0.1: // 10% expired products
+				expiryDate = now.AddDate(0, 0, -rand.Intn(30)-1) // 1-30 days ago from today
+			case scenarioRand < 0.2: // 10% expiring within 7 days
+				expiryDate = now.AddDate(0, 0, rand.Intn(7)+1) // 1-7 days from today
+			case scenarioRand < 0.3: // 10% expiring within 30 days
+				expiryDate = now.AddDate(0, 0, rand.Intn(23)+8) // 8-30 days from today
+			default: // 70% normal expiry (3 months)
+				expiryDate = now.AddDate(0, 3, 0) // 3 months expiry for most products
+			}
 
 			inventory := models.WarehouseInventory{
 				WarehouseID: s.warehouses[0].WarehouseID, // Use first warehouse
@@ -356,7 +370,106 @@ func (s *StoreSimulation) processInitialStockTransfers() error {
 		}
 	}
 
+	// Create warehouse-empty scenarios by depleting some warehouse inventory completely
+	if err := s.createWarehouseEmptyScenarios(); err != nil {
+		log.Printf("Warning: Failed to create warehouse empty scenarios: %v", err)
+	}
+
 	return nil
+}
+
+// createWarehouseEmptyScenarios depletes warehouse inventory for some products to test view
+func (s *StoreSimulation) createWarehouseEmptyScenarios() error {
+	log.Println("📦 Creating warehouse empty scenarios...")
+
+	// Get all warehouse inventories with remaining stock
+	var inventories []models.WarehouseInventory
+	if err := s.config.DB.Where("quantity > 0").Find(&inventories).Error; err != nil {
+		return fmt.Errorf("failed to get warehouse inventories: %w", err)
+	}
+
+	// Randomly select 20-30% of products to deplete from warehouse
+	numToDeplete := len(inventories) / 4 // About 25%
+	if numToDeplete < 5 {
+		numToDeplete = 5 // At least 5 products
+	}
+
+	// Shuffle and select random inventories to deplete
+	rand.Shuffle(len(inventories), func(i, j int) {
+		inventories[i], inventories[j] = inventories[j], inventories[i]
+	})
+
+	tx := s.config.DB.Begin()
+	depletedCount := 0
+
+	for i := 0; i < numToDeplete && i < len(inventories); i++ {
+		inv := inventories[i]
+
+		// Check if this product has any shelf inventory (so it shows up in view)
+		var shelfCount int64
+		tx.Model(&models.ShelfBatchInventory{}).Where("product_id = ? AND quantity > 0", inv.ProductID).Count(&shelfCount)
+
+		if shelfCount > 0 {
+			// Deplete warehouse inventory completely
+			if err := tx.Model(&inv).Update("quantity", 0).Error; err != nil {
+				log.Printf("Warning: Failed to deplete inventory for product %d: %v", inv.ProductID, err)
+				continue
+			}
+			depletedCount++
+			log.Printf("  ✓ Depleted warehouse inventory for product %d", inv.ProductID)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit warehouse depletion: %w", err)
+	}
+
+	log.Printf("  ✓ Created %d warehouse empty scenarios", depletedCount)
+	return nil
+}
+
+// updateShelfInventory updates the shelf_inventory table (required for views)
+func (s *StoreSimulation) updateShelfInventory(tx *gorm.DB, shelfID, productID uint, addQuantity int, expiryDate *time.Time) error {
+	// Check if shelf_inventory record exists
+	var shelfInv models.ShelfInventory
+	err := tx.Where("shelf_id = ? AND product_id = ?", shelfID, productID).First(&shelfInv).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new shelf_inventory record
+		shelfInv = models.ShelfInventory{
+			ShelfID:         shelfID,
+			ProductID:       productID,
+			CurrentQuantity: addQuantity,
+			LastRestocked:   s.currentDate,
+		}
+
+		if expiryDate != nil {
+			shelfInv.EarliestExpiryDate = expiryDate
+			shelfInv.LatestExpiryDate = expiryDate
+		}
+
+		return tx.Create(&shelfInv).Error
+	} else if err == nil {
+		// Update existing record
+		updates := map[string]interface{}{
+			"current_quantity": gorm.Expr("current_quantity + ?", addQuantity),
+			"last_restocked":   s.currentDate,
+		}
+
+		if expiryDate != nil {
+			// Update expiry dates if needed
+			if shelfInv.EarliestExpiryDate == nil || expiryDate.Before(*shelfInv.EarliestExpiryDate) {
+				updates["earliest_expiry_date"] = expiryDate
+			}
+			if shelfInv.LatestExpiryDate == nil || expiryDate.After(*shelfInv.LatestExpiryDate) {
+				updates["latest_expiry_date"] = expiryDate
+			}
+		}
+
+		return tx.Model(&shelfInv).Updates(updates).Error
+	}
+
+	return err
 }
 
 // createShelfLayouts creates shelf layout configurations for all products
@@ -462,6 +575,12 @@ func (s *StoreSimulation) createStockTransfer(product models.Product, warehouseI
 	} else {
 		tx.Rollback()
 		return fmt.Errorf("failed to check shelf batch: %w", err)
+	}
+
+	// Also update shelf_inventory table (required for views)
+	if err := s.updateShelfInventory(tx, shelf.ShelfID, product.ProductID, quantity, warehouseInv.ExpiryDate); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update shelf inventory: %w", err)
 	}
 
 	// Commit transaction
@@ -608,6 +727,13 @@ func (s *StoreSimulation) createSalesInvoice() error {
 		if err := tx.Model(&shelfBatch).Update("quantity", gorm.Expr("quantity - ?", quantity)).Error; err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to update shelf inventory: %w", err)
+		}
+
+		// Also update shelf_inventory table
+		if err := tx.Model(&models.ShelfInventory{}).
+			Where("shelf_id = ? AND product_id = ?", shelfBatch.ShelfID, shelfBatch.ProductID).
+			Update("current_quantity", gorm.Expr("current_quantity - ?", quantity)).Error; err != nil {
+			log.Printf("Warning: Failed to update shelf_inventory during sale: %v", err)
 		}
 
 		subtotal += itemSubtotal
@@ -858,9 +984,23 @@ func (s *StoreSimulation) createPurchaseOrder(supplierID uint, items []struct {
 			return err
 		}
 
-		// Create warehouse inventory
+		// Create warehouse inventory with varying expiry dates
 		batchCode := fmt.Sprintf("BATCH%s%04d", s.currentDate.Format("20060102"), item.ProductID)
-		expiryDate := s.currentDate.AddDate(0, 3, 0) // 3 months expiry
+
+		// Create different expiry scenarios for testing using current time
+		var expiryDate time.Time
+		now := time.Now()
+		scenarioRand := rand.Float64()
+		switch {
+		case scenarioRand < 0.1: // 10% expired products
+			expiryDate = now.AddDate(0, 0, -rand.Intn(30)-1) // 1-30 days ago from today
+		case scenarioRand < 0.2: // 10% expiring within 7 days
+			expiryDate = now.AddDate(0, 0, rand.Intn(7)+1) // 1-7 days from today
+		case scenarioRand < 0.3: // 10% expiring within 30 days
+			expiryDate = now.AddDate(0, 0, rand.Intn(23)+8) // 8-30 days from today
+		default: // 70% normal expiry (3 months)
+			expiryDate = now.AddDate(0, 3, 0) // 3 months expiry for most products
+		}
 
 		inventory := models.WarehouseInventory{
 			WarehouseID: s.warehouses[0].WarehouseID,

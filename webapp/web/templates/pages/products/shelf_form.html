@@ -1,0 +1,72 @@
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>{{if .IsNew}}Thêm quầy trưng bày mới{{else}}Chỉnh sửa quầy trưng bày{{end}}</span>
+            <a href="/products/shelves" class="btn btn-secondary">Quay lại</a>
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <form method="POST" action="{{if .IsNew}}/products/shelves{{else}}/products/shelves/{{.Shelf.ShelfID}}{{end}}">
+            {{if not .IsNew}}
+            <input type="hidden" name="_method" value="PUT">
+            {{end}}
+            
+            <div class="form-group">
+                <label for="shelf_code">Mã quầy *</label>
+                <input type="text" id="shelf_code" name="shelf_code" 
+                       value="{{if not .IsNew}}{{.Shelf.ShelfCode}}{{end}}" 
+                       required class="form-control" placeholder="VD: SHELF001">
+            </div>
+            
+            <div class="form-group">
+                <label for="shelf_name">Tên quầy *</label>
+                <input type="text" id="shelf_name" name="shelf_name" 
+                       value="{{if not .IsNew}}{{.Shelf.ShelfName}}{{end}}" 
+                       required class="form-control" placeholder="VD: Quầy đồ uống">
+            </div>
+            
+            <div class="form-group">
+                <label for="category_id">Danh mục sản phẩm *</label>
+                <select id="category_id" name="category_id" required class="form-control">
+                    <option value="">Chọn danh mục</option>
+                    {{range .Categories}}
+                    <option value="{{.CategoryID}}" 
+                            {{if not $.IsNew}}{{if eq $.Shelf.CategoryID .CategoryID}}selected{{end}}{{end}}>
+                        {{.CategoryName}}
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="location">Vị trí</label>
+                <input type="text" id="location" name="location" 
+                       value="{{if not .IsNew}}{{if .Shelf.Location}}{{.Shelf.Location}}{{end}}{{end}}" 
+                       class="form-control" placeholder="VD: Tầng 1, khu A">
+            </div>
+            
+            <div class="form-group">
+                <label for="max_capacity">Sức chứa tối đa</label>
+                <input type="number" id="max_capacity" name="max_capacity" 
+                       value="{{if not .IsNew}}{{if .Shelf.MaxCapacity}}{{.Shelf.MaxCapacity}}{{end}}{{end}}" 
+                       min="1" class="form-control" placeholder="VD: 100">
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="is_active" 
+                           {{if .IsNew}}checked{{else}}{{if .Shelf.IsActive}}checked{{end}}{{end}}>
+                    Quầy đang hoạt động
+                </label>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {{if .IsNew}}Tạo quầy trưng bày{{else}}Cập nhật{{end}}
+                </button>
+                <a href="/products/shelves" class="btn btn-secondary">Hủy</a>
+            </div>
+        </form>
+    </div>
+</div>

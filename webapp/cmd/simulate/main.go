@@ -15,10 +15,14 @@ import (
 )
 
 func main() {
+	// Calculate dates: 30 days ago to today
+	now := time.Now()
+	thirtyDaysAgo := now.AddDate(0, 0, -30)
+
 	// Parse command line flags
 	var (
-		startDate  = flag.String("start", "2025-09-01", "Simulation start date (YYYY-MM-DD)")
-		endDate    = flag.String("end", "2025-09-24", "Simulation end date (YYYY-MM-DD)")
+		startDate  = flag.String("start", thirtyDaysAgo.Format("2006-01-02"), "Simulation start date (YYYY-MM-DD)")
+		endDate    = flag.String("end", now.Format("2006-01-02"), "Simulation end date (YYYY-MM-DD)")
 		clear      = flag.Bool("clear", false, "Clear existing simulation data before running")
 		seed       = flag.Bool("seed", false, "Run initial seed if database is empty")
 		noQueryLog = flag.Bool("no-query-log", false, "Disable query logging during simulation")
@@ -217,7 +221,7 @@ func printStatistics(db *gorm.DB, start, end time.Time) {
 
 	fmt.Printf("\n📦 PURCHASE ORDERS\n")
 	fmt.Printf("   Total Orders:  %d\n", orderStats.Count)
-	fmt.Printf("   Total Value:   %,.0f VND\n", orderStats.Total)
+	fmt.Printf("   Total Value:   %.0f VND\n", orderStats.Total)
 
 	// Sales Invoices
 	var invoiceStats struct {
@@ -238,9 +242,9 @@ func printStatistics(db *gorm.DB, start, end time.Time) {
 
 	fmt.Printf("\n💰 SALES INVOICES\n")
 	fmt.Printf("   Total Invoices:    %d\n", invoiceStats.Count)
-	fmt.Printf("   Total Revenue:     %,.0f VND\n", invoiceStats.Total)
-	fmt.Printf("   Average Invoice:   %,.0f VND\n", invoiceStats.AvgValue)
-	fmt.Printf("   Total Discounts:   %,.0f VND\n", invoiceStats.TotalDiscount)
+	fmt.Printf("   Total Revenue:     %.0f VND\n", invoiceStats.Total)
+	fmt.Printf("   Average Invoice:   %.0f VND\n", invoiceStats.AvgValue)
+	fmt.Printf("   Total Discounts:   %.0f VND\n", invoiceStats.TotalDiscount)
 
 	// Stock Transfers
 	var transferCount int64
@@ -275,7 +279,7 @@ func printStatistics(db *gorm.DB, start, end time.Time) {
 
 	fmt.Printf("\n🏆 TOP 5 BEST SELLING PRODUCTS\n")
 	for i, p := range topProducts {
-		fmt.Printf("   %d. %-30s Qty: %4d  Revenue: %,.0f VND\n",
+		fmt.Printf("   %d. %-30s Qty: %4d  Revenue: %.0f VND\n",
 			i+1, p.ProductName, p.TotalQty, p.TotalValue)
 	}
 
@@ -305,16 +309,16 @@ func printStatistics(db *gorm.DB, start, end time.Time) {
 		Scan(&shelfStock)
 
 	fmt.Printf("\n📊 CURRENT INVENTORY STATUS\n")
-	fmt.Printf("   Warehouse Products:  %d products worth %,.0f VND\n",
+	fmt.Printf("   Warehouse Products:  %d products worth %.0f VND\n",
 		warehouseStock.TotalProducts, warehouseStock.TotalValue)
-	fmt.Printf("   Shelf Products:      %d products worth %,.0f VND\n",
+	fmt.Printf("   Shelf Products:      %d products worth %.0f VND\n",
 		shelfStock.TotalProducts, shelfStock.TotalValue)
 
 	// Daily average
 	days := int(end.Sub(start).Hours()/24) + 1
 	if days > 0 {
 		fmt.Printf("\n📈 DAILY AVERAGES\n")
-		fmt.Printf("   Sales per day:       %,.0f VND\n", invoiceStats.Total/float64(days))
+		fmt.Printf("   Sales per day:       %.0f VND\n", invoiceStats.Total/float64(days))
 		fmt.Printf("   Transactions/day:    %.1f\n", float64(invoiceStats.Count)/float64(days))
 	}
 

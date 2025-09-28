@@ -38,15 +38,29 @@ func NewServer() *Server {
 		}
 		return fmt.Sprintf("%.2fms", float64(d.Nanoseconds())/1000000)
 	})
+	engine.AddFunc("mul", func(a, b int) int {
+		return a * b
+	})
+	engine.AddFunc("div", func(a, b int) int {
+		if b == 0 {
+			return 0
+		}
+		return a / b
+	})
 
 	// Create Fiber app with template engine
 	app := fiber.New(fiber.Config{
 		Views: engine,
+		// Enable debug mode for development
+		EnablePrintRoutes: true,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
 			}
+
+			// Log error details to console
+			log.Printf("ERROR [%s %s]: %v", c.Method(), c.Path(), err)
 
 			// Check if it's an API request
 			if c.Get("Content-Type") == "application/json" {
@@ -57,22 +71,37 @@ func NewServer() *Server {
 
 			// HTML error page
 			return c.Status(code).Render("pages/error", fiber.Map{
-				"Title": "Error",
-				"Error": err.Error(),
-				"Code":  code,
-			})
+				"Title":           "Error",
+				"Error":           err.Error(),
+				"Code":            code,
+				"SQLQueries":      c.Locals("SQLQueries"),
+				"TotalSQLQueries": c.Locals("TotalSQLQueries"),
+			}, "layouts/base")
 		},
 	})
 
 	// Middleware
-	app.Use(recover.New())
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+	}))
 	app.Use(cors.New())
 	app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
+		Format: "[${time}] ${status} - ${latency} ${method} ${path} ${error}\n",
 	}))
 
 	// Custom middleware to inject SQL logs into context
 	app.Use(middleware.SQLDebugMiddleware())
+
+	// Method override middleware for HTML forms
+	app.Use(func(c *fiber.Ctx) error {
+		if c.Method() == "POST" {
+			method := c.FormValue("_method")
+			if method != "" {
+				c.Method(method)
+			}
+		}
+		return c.Next()
+	})
 
 	// Static files
 	app.Static("/static", "./web/static")
@@ -103,6 +132,26 @@ func setupRoutes(app *fiber.App) {
 	products.Get("/", handlers.ProductList)
 	products.Get("/new", handlers.ProductNew)
 	products.Post("/", handlers.ProductCreate)
+
+	// Display shelf management - must be before /:id routes
+	products.Get("/shelves", handlers.DisplayShelfList)
+	products.Get("/shelves/new", handlers.DisplayShelfNew)
+	products.Post("/shelves", handlers.DisplayShelfCreate)
+	products.Get("/shelves/:id", handlers.DisplayShelfView)
+	products.Get("/shelves/:id/edit", handlers.DisplayShelfEdit)
+	products.Put("/shelves/:id", handlers.DisplayShelfUpdate)
+	products.Delete("/shelves/:id", handlers.DisplayShelfDelete)
+
+	// Shelf layout management - must be before /:id routes
+	products.Get("/shelf-layouts", handlers.ShelfLayoutList)
+	products.Get("/shelf-layouts/new", handlers.ShelfLayoutNew)
+	products.Post("/shelf-layouts", handlers.ShelfLayoutCreate)
+	products.Get("/shelf-layouts/:id", handlers.ShelfLayoutView)
+	products.Get("/shelf-layouts/:id/edit", handlers.ShelfLayoutEdit)
+	products.Put("/shelf-layouts/:id", handlers.ShelfLayoutUpdate)
+	products.Delete("/shelf-layouts/:id", handlers.ShelfLayoutDelete)
+
+	// Product detail routes - must be after /shelves routes
 	products.Get("/:id", handlers.ProductView)
 	products.Get("/:id/edit", handlers.ProductEdit)
 	products.Put("/:id", handlers.ProductUpdate)
@@ -133,6 +182,7 @@ func setupRoutes(app *fiber.App) {
 	inventory.Get("/", handlers.InventoryOverview)
 	inventory.Get("/warehouse", handlers.WarehouseInventory)
 	inventory.Get("/shelf", handlers.ShelfInventory)
+	inventory.Get("/transfer", handlers.StockTransferForm)
 	inventory.Post("/transfer", handlers.StockTransfer)
 	inventory.Get("/low-stock", handlers.LowStockAlert)
 	inventory.Get("/expired", handlers.ExpiredProducts)
