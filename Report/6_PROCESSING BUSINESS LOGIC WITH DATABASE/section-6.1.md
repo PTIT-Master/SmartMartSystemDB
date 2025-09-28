@@ -2,7 +2,7 @@
 
 ## Tổng quan
 
-Hệ thống sử dụng **18 triggers** để tự động hóa các nghiệp vụ phức tạp, đảm bảo tính nhất quán dữ liệu và giảm thiểu can thiệp thủ công. Các triggers được phân thành 4 nhóm chức năng chính:
+Hệ thống sử dụng **49 triggers** để tự động hóa các nghiệp vụ phức tạp, đảm bảo tính nhất quán dữ liệu và giảm thiểu can thiệp thủ công. Các triggers được phân thành 4 nhóm chức năng chính:
 
 ---
 
@@ -363,8 +363,10 @@ END IF;
 |------|----------|----------------|
 | **Quản lý tồn kho** | 3 | Đồng bộ số liệu kho-quầy, validate chuyển hàng |
 | **Tính toán** | 5 | Tự động tính subtotal, total, điểm thưởng, lương |
-| **Kiểm tra ràng buộc** | 7 | Validate business rules, cảnh báo |
+| **Kiểm tra ràng buộc** | 5 | Validate business rules, cảnh báo |
 | **Xử lý hạn sử dụng** | 2 | Tính hạn SD, áp dụng giảm giá tự động |
+| **Logging và Auditing** | 8 | Ghi log hoạt động, theo dõi thay đổi |
+| **Timestamp Management** | 26 | Tự động set created_at và updated_at |
 
 ## **Lợi ích của hệ thống Triggers**
 
@@ -374,9 +376,47 @@ END IF;
 4. **Giảm lỗi**: Loại bỏ sai sót do con người
 5. **Tuân thủ nghiệp vụ**: Enforce business rules nghiêm ngặt
 
+---
+
+## 6.1.5. **Nhóm Triggers Logging và Auditing**
+
+Nhóm này ghi lại các hoạt động quan trọng để audit và debug.
+
+### **A. `tr_log_sales_activity`**
+**Mục đích**: Ghi log khi có hóa đơn mới.
+
+### **B. `tr_log_stock_transfer_activity`**  
+**Mục đích**: Ghi log khi chuyển hàng.
+
+### **C. `tr_log_product_activity`**
+**Mục đích**: Ghi log khi thêm/sửa/xóa sản phẩm.
+
+### **D. `tr_log_expiry_alert`**
+**Mục đích**: Cảnh báo hàng sắp hết hạn trên quầy.
+
+### **E. `tr_log_low_stock_alert`**
+**Mục đích**: Cảnh báo tồn kho thấp.
+
+---
+
+## 6.1.6. **Nhóm Triggers Timestamp Management**
+
+Hệ thống có 26 triggers tự động quản lý timestamp:
+- **13 triggers `tr_set_created_timestamp_*`**: Set `created_at` khi INSERT
+- **13 triggers `tr_update_timestamp_*`**: Update `updated_at` khi UPDATE
+
+Các bảng được quản lý timestamp:
+- `product_categories`, `customers`, `discount_rules`, `display_shelves`
+- `employee_work_hours`, `employees`, `membership_levels`, `positions`
+- `products`, `purchase_order_details`, `purchase_orders`
+- `sales_invoice_details`, `sales_invoices`, `shelf_layout`
+- `stock_transfers`, `suppliers`, `warehouse`, `warehouse_inventory`
+
+---
+
 ## **Thống kê hiệu suất**
 
-- **Triggers BEFORE**: 11 triggers (validation + calculation)
-- **Triggers AFTER**: 7 triggers (update related data)
-- **Bảng có nhiều triggers nhất**: `products` (4 triggers)
-- **Function phức tạp nhất**: `apply_expiry_discounts()` (45+ dòng code)
+- **Triggers BEFORE**: 28 triggers (validation + calculation + timestamp)
+- **Triggers AFTER**: 21 triggers (update related data + logging)
+- **Bảng có nhiều triggers nhất**: Hầu hết bảng có 2-3 triggers (business + timestamp)
+- **Function phức tạp nhất**: `apply_expiry_discounts()` và `process_stock_transfer()`

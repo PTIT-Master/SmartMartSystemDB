@@ -1,497 +1,393 @@
-# 6.3. STORED PROCEDURES - QUY TRÌNH PHỨC TẠP
+# 6.3. STORED PROCEDURES & FUNCTIONS - QUY TRÌNH PHỨC TẠP
 
 ## Tổng quan
 
-Hệ thống triển khai **5 Stored Procedures** để đóng gói các quy trình nghiệp vụ phức tạp, đảm bảo tính toàn vẹn dữ liệu và cung cấp API chuẩn cho các ứng dụng. Mỗi procedure xử lý một nghiệp vụ hoàn chỉnh với logic validation và error handling.
+Hệ thống triển khai **3 Stored Procedures** và **28 Functions** để đóng gói các quy trình nghiệp vụ phức tạp, đảm bảo tính toàn vẹn dữ liệu và cung cấp API chuẩn cho các ứng dụng. Procedures xử lý các nghiệp vụ hoàn chỉnh với logic validation và error handling, trong khi Functions chủ yếu phục vụ cho triggers và các tính toán đặc biệt.
 
 ---
 
-## 6.3.1. **sp_replenish_shelf_stock** - Bổ sung Hàng lên Quầy
+## **PHẦN A: STORED PROCEDURES**
 
-### **Mục đích**
-Thực hiện chuyển hàng từ kho lên quầy bán theo nguyên tắc FIFO (First In, First Out) với đầy đủ validation.
+### **A.1. process_sale_payment** - Xử lý Thanh toán Bán hàng
 
-### **Signature**
+#### **Mục đích**
+Thực hiện xử lý thanh toán hoàn chỉnh: trừ tồn kho theo FIFO, cập nhật điểm thưởng khách hàng.
+
+#### **Signature**
 ```sql
-CREATE OR REPLACE PROCEDURE supermarket.sp_replenish_shelf_stock(
-    p_product_id BIGINT,      -- ID sản phẩm cần bổ sung
-    p_shelf_id BIGINT,        -- ID quầy hàng đích
-    p_quantity BIGINT,        -- Số lượng cần chuyển
-    p_employee_id BIGINT      -- ID nhân viên thực hiện
+CREATE PROCEDURE supermarket.process_sale_payment(
+    IN p_invoice_id BIGINT
 )
 ```
 
-### **Logic xử lý**
+#### **Logic xử lý**
 ```sql
 DECLARE
-    v_warehouse_id BIGINT := 1; -- Default warehouse
-    v_available_qty BIGINT;
-    v_batch_code VARCHAR(50);
-    v_expiry_date DATE;
-    v_import_price NUMERIC(12,2);
-    v_selling_price NUMERIC(12,2);
-    v_transfer_code VARCHAR(30);
+    rec RECORD;
+    v_customer_id BIGINT;
+    v_total_amount DECIMAL(12,2);
 BEGIN
-    -- 1. Kiểm tra tồn kho trong warehouse
-    SELECT SUM(quantity) INTO v_available_qty
-    FROM supermarket.warehouse_inventory
-    WHERE product_id = p_product_id;
+    -- 1. Duyệt qua các chi tiết hóa đơn
+    FOR rec IN 
+        SELECT product_id, quantity 
+        FROM sales_invoice_details 
+        WHERE invoice_id = p_invoice_id
+    LOOP
+        -- 2. Giảm số lượng trên quầy (FIFO từ batch cũ nhất)
+        WITH batch_deduct AS (
+            SELECT shelf_batch_id, 
+                   LEAST(quantity, rec.quantity) AS deduct_qty
+            FROM shelf_batch_inventory
+            WHERE product_id = rec.product_id
+              AND quantity > 0
+            ORDER BY expiry_date ASC, batch_code ASC
+            LIMIT 1
+        )
+        UPDATE shelf_batch_inventory sbi
+        SET quantity = sbi.quantity - bd.deduct_qty
+        FROM batch_deduct bd
+        WHERE sbi.shelf_batch_id = bd.shelf_batch_id;
+        
+        -- 3. Cập nhật tổng số lượng trên quầy
+        UPDATE shelf_inventory
+        SET current_quantity = current_quantity - rec.quantity
+        WHERE product_id = rec.product_id
+          AND current_quantity >= rec.quantity;
+    END LOOP;
     
-    IF v_available_qty IS NULL OR v_available_qty < p_quantity THEN
-        RAISE EXCEPTION 'Insufficient warehouse stock. Available: %, Requested: %', 
-                        COALESCE(v_available_qty, 0), p_quantity;
+    -- 4. Cập nhật điểm và tổng chi tiêu cho khách hàng
+    SELECT customer_id, total_amount 
+    INTO v_customer_id, v_total_amount
+    FROM sales_invoices 
+    WHERE invoice_id = p_invoice_id;
+    
+    IF v_customer_id IS NOT NULL THEN
+        UPDATE customers
+        SET total_spending = total_spending + v_total_amount,
+            loyalty_points = loyalty_points + FLOOR(v_total_amount / 10000)
+        WHERE customer_id = v_customer_id;
     END IF;
     
-    -- 2. Chọn batch theo FIFO (oldest first)
-    SELECT batch_code, expiry_date, import_price
+    COMMIT;
+END;
+```
+
+#### **Đặc điểm quan trọng**
+- **FIFO Implementation**: Ưu tiên batch có hạn sử dụng sớm nhất
+- **Batch Tracking**: Xử lý chi tiết từng batch trên quầy
+- **Customer Loyalty**: Tự động cộng điểm thưởng (1 điểm / 10.000 VNĐ)
+- **Atomic Transaction**: Toàn bộ thành công hoặc rollback
+
+#### **Ví dụ sử dụng**
+```sql
+-- Xử lý thanh toán cho hóa đơn ID=1001
+CALL supermarket.process_sale_payment(1001);
+```
+
+---
+
+### **A.2. transfer_stock_to_shelf** - Chuyển Hàng từ Kho lên Quầy
+
+#### **Mục đích**
+Thực hiện chuyển hàng từ kho lên quầy bán với đầy đủ validation và theo nguyên tắc FIFO.
+
+#### **Signature**
+```sql
+CREATE PROCEDURE supermarket.transfer_stock_to_shelf(
+    IN p_product_id BIGINT,         -- ID sản phẩm
+    IN p_from_warehouse_id BIGINT,  -- ID kho nguồn
+    IN p_to_shelf_id BIGINT,        -- ID quầy đích
+    IN p_quantity BIGINT,           -- Số lượng chuyển
+    IN p_employee_id BIGINT         -- ID nhân viên thực hiện
+)
+```
+
+#### **Logic xử lý**
+```sql
+DECLARE
+    v_available_qty BIGINT;
+    v_max_shelf_qty BIGINT;
+    v_current_shelf_qty BIGINT;
+    v_batch_code VARCHAR(50);
+    v_expiry_date DATE;
+    v_import_price DECIMAL(12,2);
+BEGIN
+    -- 1. Kiểm tra số lượng trong kho
+    SELECT SUM(quantity) INTO v_available_qty
+    FROM warehouse_inventory
+    WHERE warehouse_id = p_from_warehouse_id AND product_id = p_product_id;
+    
+    IF v_available_qty IS NULL OR v_available_qty < p_quantity THEN
+        RAISE EXCEPTION 'Không đủ hàng trong kho. Có sẵn: %, Yêu cầu: %', 
+                        v_available_qty, p_quantity;
+    END IF;
+    
+    -- 2. Kiểm tra giới hạn quầy hàng
+    SELECT max_quantity INTO v_max_shelf_qty
+    FROM shelf_layout
+    WHERE shelf_id = p_to_shelf_id AND product_id = p_product_id;
+    
+    SELECT COALESCE(current_quantity, 0) INTO v_current_shelf_qty
+    FROM shelf_inventory
+    WHERE shelf_id = p_to_shelf_id AND product_id = p_product_id;
+    
+    IF v_max_shelf_qty IS NOT NULL AND (v_current_shelf_qty + p_quantity) > v_max_shelf_qty THEN
+        RAISE EXCEPTION 'Vượt quá giới hạn quầy hàng. Giới hạn: %, Hiện tại: %, Yêu cầu thêm: %', 
+            v_max_shelf_qty, v_current_shelf_qty, p_quantity;
+    END IF;
+    
+    -- 3. Lấy batch cũ nhất (FIFO)
+    SELECT batch_code, expiry_date, import_price 
     INTO v_batch_code, v_expiry_date, v_import_price
-    FROM supermarket.warehouse_inventory
-    WHERE product_id = p_product_id AND quantity >= p_quantity
-    ORDER BY import_date ASC, expiry_date ASC
+    FROM warehouse_inventory
+    WHERE warehouse_id = p_from_warehouse_id AND product_id = p_product_id
+    ORDER BY expiry_date ASC, batch_code ASC
     LIMIT 1;
     
-    -- 3. Lấy giá bán hiện tại
-    SELECT selling_price INTO v_selling_price
-    FROM supermarket.products
-    WHERE product_id = p_product_id;
-    
-    -- 4. Tạo mã chuyển hàng
-    v_transfer_code := 'TRF-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-' || 
-                       LPAD(NEXTVAL('supermarket.stock_transfers_transfer_id_seq')::TEXT, 6, '0');
-    
-    -- 5. Tạo record chuyển hàng (triggers sẽ xử lý cập nhật tồn kho)
-    INSERT INTO supermarket.stock_transfers (
-        transfer_code, product_id, from_warehouse_id, to_shelf_id,
-        quantity, employee_id, batch_code, expiry_date,
-        import_price, selling_price
+    -- 4. Tạo record chuyển hàng (triggers sẽ xử lý cập nhật)
+    INSERT INTO stock_transfers (
+        product_id, from_warehouse_id, to_shelf_id,
+        quantity, employee_id, batch_code, expiry_date, import_price
     ) VALUES (
-        v_transfer_code, p_product_id, v_warehouse_id, p_shelf_id,
-        p_quantity, p_employee_id, v_batch_code, v_expiry_date,
-        v_import_price, v_selling_price
+        p_product_id, p_from_warehouse_id, p_to_shelf_id,
+        p_quantity, p_employee_id, v_batch_code, v_expiry_date, v_import_price
     );
     
-    RAISE NOTICE 'Stock transfer completed. Transfer code: %', v_transfer_code;
+    COMMIT;
 END;
 ```
 
-### **Đặc điểm nổi bật**
-- **FIFO Implementation**: Ưu tiên batch cũ nhất, hạn sử dụng gần nhất
-- **Atomic Transaction**: Toàn bộ quy trình thành công hoặc rollback
-- **Auto Code Generation**: Tự động tạo mã chuyển hàng duy nhất
-- **Trigger Integration**: Tận dụng triggers để cập nhật tồn kho
+#### **Validation thực hiện**
+1. **Kiểm tra tồn kho**: Đảm bảo kho có đủ hàng
+2. **Kiểm tra sức chứa quầy**: Không vượt quá `max_quantity`
+3. **FIFO Logic**: Ưu tiên batch cũ nhất, hạn gần nhất
+4. **Integrity**: Đảm bảo consistency giữa warehouse và shelf
 
-### **Ví dụ sử dụng**
+#### **Ví dụ sử dụng**
 ```sql
--- Chuyển 50 sản phẩm ID=101 từ kho lên quầy ID=5
-CALL supermarket.sp_replenish_shelf_stock(101, 5, 50, 1001);
--- Output: NOTICE:  Stock transfer completed. Transfer code: TRF-20241220-000123
-
--- Kiểm tra kết quả
-SELECT * FROM supermarket.stock_transfers WHERE product_id = 101 ORDER BY created_at DESC LIMIT 1;
+-- Chuyển 100 sản phẩm ID=501 từ kho 1 lên quầy 5
+CALL supermarket.transfer_stock_to_shelf(501, 1, 5, 100, 1002);
 ```
 
 ---
 
-## 6.3.2. **sp_process_sale** - Xử lý Giao dịch Bán hàng
+### **A.3. update_expiry_discounts** - Cập nhật Giảm giá Hạn sử dụng
 
-### **Mục đích**
-Thực hiện toàn bộ quy trình bán hàng từ tạo hóa đơn đến cập nhật điểm thưởng khách hàng.
+#### **Mục đích**
+Tự động cập nhật giảm giá cho các sản phẩm trên quầy dựa trên quy tắc giảm giá theo hạn sử dụng.
 
-### **Signature**
+#### **Signature**
 ```sql
-CREATE OR REPLACE PROCEDURE supermarket.sp_process_sale(
-    p_customer_id BIGINT,           -- ID khách hàng (có thể NULL)
-    p_employee_id BIGINT,           -- ID nhân viên bán hàng
-    p_payment_method VARCHAR(20),   -- Phương thức thanh toán
-    p_product_list JSON,            -- Danh sách sản phẩm JSON
-    p_points_used BIGINT DEFAULT 0  -- Điểm thưởng sử dụng
-)
+CREATE PROCEDURE supermarket.update_expiry_discounts()
 ```
 
-### **Format JSON Input**
-```json
-[
-  {
-    "product_id": 101,
-    "quantity": 2,
-    "discount_percentage": 0
-  },
-  {
-    "product_id": 205, 
-    "quantity": 1,
-    "discount_percentage": 5.0
-  }
-]
-```
-
-### **Logic xử lý**
+#### **Logic xử lý**
 ```sql
 DECLARE
-    v_invoice_no VARCHAR(30);
-    v_invoice_id BIGINT;
-    v_product JSON;
-    v_unit_price NUMERIC(12,2);
+    rec RECORD;
+    v_discount_percent DECIMAL(5,2);
 BEGIN
-    -- 1. Tạo số hóa đơn tự động
-    v_invoice_no := 'INV-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-' || 
-                    LPAD(NEXTVAL('supermarket.sales_invoices_invoice_id_seq')::TEXT, 6, '0');
-    
-    -- 2. Tạo header hóa đơn
-    INSERT INTO supermarket.sales_invoices (
-        invoice_no, customer_id, employee_id, payment_method, points_used
-    ) VALUES (
-        v_invoice_no, p_customer_id, p_employee_id, p_payment_method, p_points_used
-    ) RETURNING invoice_id INTO v_invoice_id;
-    
-    -- 3. Xử lý từng sản phẩm trong JSON
-    FOR v_product IN SELECT * FROM json_array_elements(p_product_list)
+    -- Duyệt qua tất cả sản phẩm trên quầy
+    FOR rec IN 
+        SELECT sbi.shelf_batch_id, sbi.product_id, sbi.expiry_date, p.category_id
+        FROM shelf_batch_inventory sbi
+        JOIN products p ON sbi.product_id = p.product_id
+        WHERE sbi.expiry_date > CURRENT_DATE
+          AND sbi.quantity > 0
     LOOP
-        -- Lấy giá bán hiện tại
-        SELECT selling_price INTO v_unit_price
-        FROM supermarket.products
-        WHERE product_id = (v_product->>'product_id')::BIGINT;
+        -- Tính discount theo quy tắc
+        SELECT discount_percentage INTO v_discount_percent
+        FROM discount_rules
+        WHERE category_id = rec.category_id
+          AND days_before_expiry >= (rec.expiry_date - CURRENT_DATE)
+        ORDER BY days_before_expiry ASC
+        LIMIT 1;
         
-        -- Tạo chi tiết hóa đơn (triggers sẽ xử lý tính toán và trừ tồn)
-        INSERT INTO supermarket.sales_invoice_details (
-            invoice_id, product_id, quantity, unit_price, discount_percentage
-        ) VALUES (
-            v_invoice_id,
-            (v_product->>'product_id')::BIGINT,
-            (v_product->>'quantity')::BIGINT,
-            v_unit_price,
-            COALESCE((v_product->>'discount_percentage')::NUMERIC, 0)
-        );
+        IF v_discount_percent IS NOT NULL THEN
+            -- Cập nhật discount và đánh dấu near expiry
+            UPDATE shelf_batch_inventory
+            SET discount_percent = v_discount_percent,
+                is_near_expiry = TRUE,
+                current_price = (
+                    SELECT selling_price * (1 - v_discount_percent / 100)
+                    FROM products 
+                    WHERE product_id = rec.product_id
+                )
+            WHERE shelf_batch_id = rec.shelf_batch_id;
+        END IF;
     END LOOP;
     
-    RAISE NOTICE 'Sale processed successfully. Invoice: %', v_invoice_no;
+    COMMIT;
 END;
 ```
 
-### **Quy trình tự động**
-1. **Tạo hóa đơn**: Auto-generate invoice number
-2. **Xử lý chi tiết**: Loop qua JSON array
-3. **Tính toán**: Triggers tự động tính subtotal, tax, total
-4. **Trừ tồn kho**: Triggers kiểm tra và trừ tồn quầy
-5. **Cập nhật khách hàng**: Triggers cộng điểm thưởng, nâng cấp membership
+#### **Quy tắc giảm giá**
+- **Tìm rule phù hợp**: Dựa trên category và số ngày còn lại
+- **Tính giá mới**: `selling_price * (1 - discount_percentage / 100)`
+- **Đánh dấu near expiry**: Set flag để dễ tracking
+- **Chỉ áp dụng cho hàng còn hạn**: `expiry_date > CURRENT_DATE`
 
-### **Ví dụ sử dụng**
+#### **Ví dụ sử dụng**
 ```sql
--- Bán hàng cho khách hàng ID=501
-CALL supermarket.sp_process_sale(
-    501,  -- customer_id
-    1002, -- employee_id (nhân viên thu ngân)
-    'CASH', -- payment_method
-    '[
-        {"product_id": 101, "quantity": 3, "discount_percentage": 0},
-        {"product_id": 205, "quantity": 1, "discount_percentage": 10.0},
-        {"product_id": 310, "quantity": 2, "discount_percentage": 0}
-    ]'::json,
-    0     -- points_used
-);
--- Output: NOTICE:  Sale processed successfully. Invoice: INV-20241220-000045
-```
-
----
-
-## 6.3.3. **sp_generate_monthly_sales_report** - Báo cáo Doanh thu Tháng
-
-### **Mục đích**
-Tạo báo cáo tổng hợp doanh thu chi tiết theo tháng với phân tích theo sản phẩm và danh mục.
-
-### **Signature**
-```sql
-CREATE OR REPLACE PROCEDURE supermarket.sp_generate_monthly_sales_report(
-    p_month INTEGER,    -- Tháng (1-12)
-    p_year INTEGER      -- Năm
-)
-```
-
-### **Logic xử lý**
-```sql
-DECLARE
-    v_start_date DATE;
-    v_end_date DATE;
-    v_total_revenue NUMERIC(12,2);
-    v_total_transactions INTEGER;
-    v_total_products INTEGER;
-BEGIN
-    -- 1. Tính khoảng thời gian
-    v_start_date := DATE(p_year || '-' || LPAD(p_month::TEXT, 2, '0') || '-01');
-    v_end_date := (v_start_date + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
-    
-    -- 2. Tạo temporary table cho report
-    CREATE TEMP TABLE IF NOT EXISTS monthly_sales_report (
-        report_date DATE,
-        category_name VARCHAR(100),
-        product_name VARCHAR(200),
-        quantity_sold BIGINT,
-        revenue NUMERIC(12,2),
-        avg_discount NUMERIC(5,2)
-    );
-    
-    -- 3. Thu thập dữ liệu chi tiết
-    INSERT INTO monthly_sales_report
-    SELECT 
-        si.invoice_date::DATE,
-        pc.category_name,
-        p.product_name,
-        SUM(sid.quantity),
-        SUM(sid.subtotal),
-        AVG(sid.discount_percentage)
-    FROM supermarket.sales_invoice_details sid
-    INNER JOIN supermarket.sales_invoices si ON sid.invoice_id = si.invoice_id
-    INNER JOIN supermarket.products p ON sid.product_id = p.product_id
-    INNER JOIN supermarket.product_categories pc ON p.category_id = pc.category_id
-    WHERE si.invoice_date >= v_start_date 
-      AND si.invoice_date <= v_end_date
-    GROUP BY si.invoice_date::DATE, pc.category_name, p.product_name;
-    
-    -- 4. Tính tổng kết
-    SELECT 
-        SUM(revenue),
-        COUNT(DISTINCT report_date),
-        COUNT(DISTINCT product_name)
-    INTO v_total_revenue, v_total_transactions, v_total_products
-    FROM monthly_sales_report;
-    
-    RAISE NOTICE 'Monthly report for %/% generated. Total revenue: %', 
-                 p_month, p_year, v_total_revenue;
-END;
-```
-
-### **Ví dụ sử dụng**
-```sql
--- Tạo báo cáo tháng 12/2024
-CALL supermarket.sp_generate_monthly_sales_report(12, 2024);
-
--- Xem kết quả chi tiết
-SELECT category_name, SUM(quantity_sold) as total_qty, SUM(revenue) as total_revenue
-FROM monthly_sales_report
-GROUP BY category_name
-ORDER BY total_revenue DESC;
-
--- Top sản phẩm bán chạy
-SELECT product_name, SUM(quantity_sold) as qty, SUM(revenue) as revenue
-FROM monthly_sales_report  
-GROUP BY product_name
-ORDER BY revenue DESC
-LIMIT 10;
-```
-
----
-
-## 6.3.4. **sp_remove_expired_products** - Loại bỏ Hàng hết hạn
-
-### **Mục đích**
-Tự động loại bỏ các sản phẩm đã hết hạn sử dụng khỏi kho và quầy bán, ghi log chi tiết.
-
-### **Signature**
-```sql
-CREATE OR REPLACE PROCEDURE supermarket.sp_remove_expired_products()
-```
-
-### **Logic xử lý**
-```sql
-DECLARE
-    v_expired_count INTEGER := 0;
-    v_record RECORD;
-BEGIN
-    -- 1. Xử lý hàng hết hạn trong warehouse
-    FOR v_record IN 
-        SELECT inventory_id, product_id, batch_code, quantity, expiry_date
-        FROM supermarket.warehouse_inventory
-        WHERE expiry_date < CURRENT_DATE
-    LOOP
-        -- Log thông tin
-        RAISE NOTICE 'Removing expired batch: % (Product: %, Qty: %)', 
-                     v_record.batch_code, v_record.product_id, v_record.quantity;
-        
-        -- Xóa khỏi inventory  
-        DELETE FROM supermarket.warehouse_inventory 
-        WHERE inventory_id = v_record.inventory_id;
-        
-        v_expired_count := v_expired_count + 1;
-    END LOOP;
-    
-    -- 2. Xử lý hàng hết hạn trên shelf
-    UPDATE supermarket.shelf_batch_inventory
-    SET quantity = 0, is_near_expiry = true
-    WHERE expiry_date < CURRENT_DATE;
-    
-    RAISE NOTICE 'Expired products removal completed. Total removed: % batches', v_expired_count;
-END;
-```
-
-### **Tính năng**
-- **Audit Trail**: Log chi tiết mỗi batch bị xóa
-- **Safe Removal**: Không xóa hẳn shelf records, chỉ set quantity = 0
-- **Batch Processing**: Xử lý hàng loạt hiệu quả
-- **Notification**: Thông báo kết quả xử lý
-
-### **Ví dụ sử dụng**
-```sql
--- Chạy hàng ngày để dọn dẹp hàng hết hạn
-CALL supermarket.sp_remove_expired_products();
--- Output: NOTICE:  Removing expired batch: BTH-001 (Product: 101, Qty: 25)
--- Output: NOTICE:  Expired products removal completed. Total removed: 3 batches
+-- Chạy hàng ngày để cập nhật giảm giá
+CALL supermarket.update_expiry_discounts();
 
 -- Có thể tích hợp vào cron job
--- 0 1 * * * psql -d supermarket -c "CALL supermarket.sp_remove_expired_products();"
+-- 0 6 * * * psql -d supermarket -c "CALL supermarket.update_expiry_discounts();"
 ```
 
 ---
 
-## 6.3.5. **sp_calculate_employee_salary** - Tính Lương Nhân viên
+## **PHẦN B: UTILITY FUNCTIONS**
 
-### **Mục đích**  
-Tính lương tháng cho nhân viên dựa trên lương cơ bản và giờ làm thực tế.
+### **B.1. Nhóm Functions cho Triggers (28 functions)**
 
-### **Signature**
+#### **Business Logic Functions**
+- `apply_expiry_discounts()` - Áp dụng giảm giá hạn sử dụng
+- `calculate_detail_subtotal()` - Tính subtotal chi tiết hóa đơn
+- `calculate_expiry_date()` - Tính hạn sử dụng từ ngày nhập
+- `calculate_invoice_totals()` - Tính tổng hóa đơn
+- `calculate_purchase_detail_subtotal()` - Tính subtotal chi tiết nhập hàng
+- `calculate_work_hours()` - Tính giờ làm việc nhân viên
+- `check_low_stock()` - Kiểm tra cảnh báo tồn kho thấp
+- `check_membership_upgrade()` - Kiểm tra nâng cấp thành viên
+- `process_sales_stock_deduction()` - Trừ tồn kho khi bán
+- `process_stock_transfer()` - Xử lý chuyển hàng
+- `update_customer_metrics()` - Cập nhật thông số khách hàng
+- `update_purchase_order_total()` - Cập nhật tổng đơn nhập hàng
+- `validate_product_price()` - Validate giá bán > giá nhập
+- `validate_shelf_capacity()` - Validate sức chứa quầy
+- `validate_shelf_category_consistency()` - Validate category sản phẩm-quầy
+- `validate_stock_transfer()` - Validate điều kiện chuyển hàng
+
+#### **Logging Functions**
+- `log_expiry_alert()` - Ghi log cảnh báo hết hạn
+- `log_low_stock_alert()` - Ghi log cảnh báo thiếu hàng
+- `log_product_activity()` - Ghi log hoạt động sản phẩm
+- `log_sales_activity()` - Ghi log bán hàng
+- `log_stock_transfer_activity()` - Ghi log chuyển hàng
+
+#### **Utility Functions**
+- `set_created_timestamp()` - Set timestamp khi tạo
+- `update_timestamp()` - Update timestamp khi sửa
+
+#### **Reporting Functions**
+- `calculate_discount_price()` - Tính giá sau giảm giá
+- `calculate_invoice_total()` - Tính tổng hóa đơn chi tiết
+- `check_restock_alerts()` - Kiểm tra cảnh báo bổ sung
+- `get_best_selling_products()` - Lấy sản phẩm bán chạy
+- `get_revenue_report()` - Tạo báo cáo doanh thu
+
+---
+
+## **PHẦN C: INTEGRATION PATTERNS**
+
+### **C.1. Trigger-Function Integration**
 ```sql
-CREATE OR REPLACE PROCEDURE supermarket.sp_calculate_employee_salary(
-    p_employee_id BIGINT,                    -- ID nhân viên
-    p_month INTEGER,                         -- Tháng tính lương
-    p_year INTEGER,                          -- Năm tính lương
-    OUT p_base_salary NUMERIC(12,2),        -- Lương cơ bản (output)
-    OUT p_hourly_salary NUMERIC(12,2),      -- Lương theo giờ (output)
-    OUT p_total_salary NUMERIC(12,2)        -- Tổng lương (output)
-)
+-- Example: Trigger sử dụng function
+CREATE TRIGGER tr_process_sales_stock_deduction 
+    AFTER INSERT ON sales_invoice_details 
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_sales_stock_deduction();
+
+-- Function xử lý logic nghiệp vụ
+CREATE FUNCTION process_sales_stock_deduction() 
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Business logic here
+    UPDATE shelf_inventory 
+    SET current_quantity = current_quantity - NEW.quantity
+    WHERE product_id = NEW.product_id;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-### **Logic tính toán**
+### **C.2. Procedure-Application Integration**
 ```sql
-DECLARE
-    v_position_id BIGINT;
-    v_total_hours NUMERIC(10,2);
-    v_hourly_rate NUMERIC(10,2);
-BEGIN
-    -- 1. Lấy thông tin vị trí và mức lương
-    SELECT e.position_id, p.base_salary, p.hourly_rate
-    INTO v_position_id, p_base_salary, v_hourly_rate
-    FROM supermarket.employees e
-    INNER JOIN supermarket.positions p ON e.position_id = p.position_id
-    WHERE e.employee_id = p_employee_id;
+-- Application code gọi procedure
+BEGIN;
+    CALL supermarket.process_sale_payment(:invoice_id);
     
-    -- 2. Tính tổng giờ làm trong tháng
-    SELECT COALESCE(SUM(total_hours), 0)
-    INTO v_total_hours
-    FROM supermarket.employee_work_hours
-    WHERE employee_id = p_employee_id
-      AND EXTRACT(MONTH FROM work_date) = p_month
-      AND EXTRACT(YEAR FROM work_date) = p_year;
-    
-    -- 3. Tính lương theo giờ
-    p_hourly_salary := v_total_hours * v_hourly_rate;
-    
-    -- 4. Tính tổng lương
-    p_total_salary := p_base_salary + p_hourly_salary;
-    
-    RAISE NOTICE 'Salary calculated for employee %: Base=%, Hourly=%, Total=%', 
-                 p_employee_id, p_base_salary, p_hourly_salary, p_total_salary;
+    IF SQLSTATE = '00000' THEN
+        COMMIT;
+        RETURN success_response;
+    ELSE
+        ROLLBACK;
+        RETURN error_response;
+    END IF;
 END;
 ```
 
-### **Công thức lương**
-```
-Tổng lương = Lương cơ bản + (Số giờ làm × Đơn giá giờ)
-```
-
-### **Ví dụ sử dụng**
+### **C.3. Function-View Integration**
 ```sql
--- Tính lương nhân viên ID=1001 tháng 12/2024
-DO $$
-DECLARE
-    base_sal NUMERIC(12,2);
-    hourly_sal NUMERIC(12,2); 
-    total_sal NUMERIC(12,2);
-BEGIN
-    CALL supermarket.sp_calculate_employee_salary(1001, 12, 2024, base_sal, hourly_sal, total_sal);
-    
-    RAISE NOTICE 'Employee salary breakdown:';
-    RAISE NOTICE '- Base salary: %', base_sal;
-    RAISE NOTICE '- Hourly salary: %', hourly_sal;
-    RAISE NOTICE '- Total salary: %', total_sal;
-END $$;
-
--- Output:
--- NOTICE:  Salary calculated for employee 1001: Base=5000000, Hourly=2400000, Total=7400000
--- NOTICE:  Employee salary breakdown:
--- NOTICE:  - Base salary: 5000000.00
--- NOTICE:  - Hourly salary: 2400000.00  
--- NOTICE:  - Total salary: 7400000.00
+-- View sử dụng function để tính toán
+CREATE VIEW v_product_with_discounts AS
+SELECT 
+    p.*,
+    calculate_discount_price(p.product_id, CURRENT_DATE) as discounted_price
+FROM products p;
 ```
 
 ---
 
-## **Tổng quan Stored Procedures System**
+## **Tổng quan Procedures & Functions System**
 
 ### **Thống kê chức năng**
-| Procedure | Nghiệp vụ | Độ phức tạp | Tương tác Triggers |
-|-----------|-----------|-------------|-------------------|
-| `sp_replenish_shelf_stock` | Quản lý tồn kho | Cao | ✓ (validate + process) |
-| `sp_process_sale` | Bán hàng | Cao | ✓ (calculation + stock) |
-| `sp_generate_monthly_sales_report` | Báo cáo | Trung bình | ✗ |
-| `sp_remove_expired_products` | Dọn dẹp | Trung bình | ✗ |
-| `sp_calculate_employee_salary` | Tính lương | Thấp | ✗ |
+| Loại | Số lượng | Mục đích chính | Độ phức tạp |
+|------|----------|----------------|-------------|
+| **Stored Procedures** | 3 | Nghiệp vụ hoàn chỉnh | Cao |
+| **Trigger Functions** | 16 | Logic triggers | Trung bình-Cao |
+| **Logging Functions** | 5 | Audit & Monitoring | Thấp |
+| **Utility Functions** | 2 | Timestamp management | Thấp |
+| **Reporting Functions** | 5 | Báo cáo & phân tích | Trung bình |
 
 ### **Đặc điểm kỹ thuật**
 
-#### **Error Handling**
+#### **Error Handling Pattern**
 ```sql
--- Pattern chung cho exception handling
 BEGIN
     -- Business logic
     IF condition_failed THEN
         RAISE EXCEPTION 'Error message with params: %', variable;
     END IF;
     
+    -- Success processing
     RAISE NOTICE 'Success message: %', result;
+    
 EXCEPTION
     WHEN OTHERS THEN
-        RAISE NOTICE 'Procedure failed: %', SQLERRM;
-        -- Có thể log vào audit table
+        RAISE NOTICE 'Operation failed: %', SQLERRM;
+        -- Optional: Log to audit table
 END;
 ```
 
 #### **Transaction Management**
-- Tất cả procedures chạy trong **single transaction**
-- **ROLLBACK** tự động nếu có lỗi
-- Sử dụng **SAVEPOINT** cho complex procedures
+- **Procedures**: Quản lý transaction hoàn chỉnh với COMMIT/ROLLBACK
+- **Functions**: Chạy trong transaction context của caller
+- **Atomic Operations**: Đảm bảo consistency với explicit transaction control
 
 #### **Performance Optimization**
-- **Batch processing** cho operations hàng loạt
-- **Temp tables** cho complex reports
-- **Index hints** trong complex queries
-- **LIMIT** clauses để tránh timeout
-
-### **Integration với Application Layer**
-
-```sql
--- Example: Gọi từ application
-CALL supermarket.sp_process_sale(
-    :customer_id,
-    :employee_id, 
-    :payment_method,
-    :product_list_json,
-    :points_used
-);
-
--- Xử lý kết quả trong code
-IF SQLSTATE = '00000' THEN
-    -- Success
-    COMMIT;
-    RETURN success_response;
-ELSE
-    -- Error occurred  
-    ROLLBACK;
-    RETURN error_response;
-END IF;
-```
+- **Batch Processing**: Xử lý hàng loạt trong loops
+- **Index Usage**: Tối ưu queries trong functions
+- **Memory Management**: Cleanup variables và cursors
+- **Connection Pooling**: Tái sử dụng connections cho procedures
 
 ### **Best Practices Applied**
 
-1. **Input Validation**: Kiểm tra tham số đầu vào
-2. **Atomic Operations**: Toàn bộ thành công hoặc rollback
-3. **Clear Messaging**: RAISE NOTICE cho kết quả
-4. **Consistent Naming**: sp_[action]_[object] convention
-5. **Documentation**: Comment chi tiết logic phức tạp
+1. **Separation of Concerns**: Procedures cho business logic, Functions cho computations
+2. **Error Handling**: Comprehensive exception handling với meaningful messages  
+3. **Input Validation**: Kiểm tra tham số đầu vào kỹ lưỡng
+4. **Consistent Naming**: `sp_[action]_[object]` cho procedures, descriptive names cho functions
+5. **Documentation**: Comments chi tiết cho logic phức tạp
+6. **Security**: Proper parameter binding, SQL injection prevention
+7. **Monitoring**: Extensive logging cho audit và debugging
+
+### **Usage Guidelines**
+
+- **Procedures**: Gọi từ application layer cho complete business operations
+- **Functions**: Sử dụng trong triggers, views, và calculations
+- **Error Handling**: Luôn wrap procedure calls trong try-catch blocks
+- **Performance**: Monitor execution time và optimize khi cần thiết
+- **Maintenance**: Regular review và update documentation
