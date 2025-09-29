@@ -98,10 +98,10 @@ Route-to-template confirmation:
    - [x] `positions` admin pages (list/create/edit/delete)
    - [x] `membership_levels` admin pages (list/create/edit/delete)
 2) Sorting/filters endpoints
-   - [ ] Add sort by “sold today” to category/shelf/product listings
-   - [ ] Ensure explicit UI sort by total stock (warehouse + shelf) on product list
+   - [x] Add sort by “sold today” to shelf listing
+   - [x] Ensure explicit UI sort by total stock (warehouse + shelf) on product list
 3) Monthly revenue ranking
-   - [ ] Add quick month picker + ranking section to `reports/products.html`
+   - [x] Add quick month picker + ranking section to `reports/products.html`
    - [ ] Optional: add `v_product_revenue_monthly` for performance
 4) Salary calculation report
    - [x] `employees/salary_summary.html` exists; query combines `positions` + `employee_work_hours`
@@ -116,11 +116,11 @@ Route-to-template confirmation:
   - Routes: `/positions/*`; Tables: `positions`
 - [x] Build `membership_levels` admin CRUD: list/form/view/edit/delete
   - Routes: `/membership-levels/*`; Tables: `membership_levels`
-- [ ] Add “sold today” sorting option
+- [x] Add “sold today” sorting option
   - Update handlers: category/shelf product listings; join `sales_invoice_details` with `DATE(invoice_date)=CURRENT_DATE`
-- [ ] Add explicit sort-by-total-stock in product list UI
+- [x] Add explicit sort-by-total-stock in product list UI
   - Use `v_product_overview` totals; add UI control and ORDER BY
-- [ ] Add month picker + ranking section to `reports/products.html`
+- [x] Add month picker + ranking section to `reports/products.html`
   - Group by month; show top N by revenue and by units
 - [ ] Optional: add daily scheduler or admin button to call `update_expiry_discounts()`
   - Wire to `/inventory/apply-discount` or a new admin endpoint

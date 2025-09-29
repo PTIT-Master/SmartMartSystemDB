@@ -48,6 +48,51 @@
       </tbody>
     </table>
   </div>
+
+  <div class="row mt-3">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">Top 10 theo doanh thu</div>
+        <table class="table table-sm">
+          <thead><tr><th>Mã</th><th>Tên</th><th>Danh mục</th><th>Doanh thu</th><th>SL</th></tr></thead>
+          <tbody>
+            {{range .TopByRevenue}}
+            <tr>
+              <td>{{.ProductCode}}</td>
+              <td>{{.ProductName}}</td>
+              <td>{{.CategoryName}}</td>
+              <td>{{printf "%.0f" .TotalRevenue}}</td>
+              <td>{{.TotalSold}}</td>
+            </tr>
+            {{else}}
+            <tr><td colspan="5" class="text-center">Không có dữ liệu</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">Top 10 theo số lượng</div>
+        <table class="table table-sm">
+          <thead><tr><th>Mã</th><th>Tên</th><th>Danh mục</th><th>SL</th><th>Doanh thu</th></tr></thead>
+          <tbody>
+            {{range .TopByUnits}}
+            <tr>
+              <td>{{.ProductCode}}</td>
+              <td>{{.ProductName}}</td>
+              <td>{{.CategoryName}}</td>
+              <td>{{.TotalSold}}</td>
+              <td>{{printf "%.0f" .TotalRevenue}}</td>
+            </tr>
+            {{else}}
+            <tr><td colspan="5" class="text-center">Không có dữ liệu</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 

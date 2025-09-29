@@ -348,6 +348,20 @@ func ProductReport(c *fiber.Ctx) error {
 	dateFrom := c.Query("date_from", time.Now().AddDate(0, -1, 0).Format("2006-01-02"))
 	dateTo := c.Query("date_to", time.Now().Format("2006-01-02"))
 	categoryID := c.Query("category_id", "")
+	monthStr := c.Query("month", "") // YYYY-MM
+
+	// If month selected, override date range to the month's boundaries
+	if monthStr != "" && len(monthStr) >= 7 {
+		// Parse first day of month
+		t, err := time.Parse("2006-01", monthStr[:7])
+		if err == nil {
+			first := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.Local)
+			nextMonth := first.AddDate(0, 1, 0)
+			last := nextMonth.AddDate(0, 0, -1)
+			dateFrom = first.Format("2006-01-02")
+			dateTo = last.Format("2006-01-02")
+		}
+	}
 
 	// Build query
 	query := `
@@ -402,6 +416,91 @@ func ProductReport(c *fiber.Ctx) error {
 		})
 	}
 
+	// Top by revenue (top 10)
+	var topByRevenue []struct {
+		ProductID    uint    `json:"product_id"`
+		ProductCode  string  `json:"product_code"`
+		ProductName  string  `json:"product_name"`
+		CategoryName string  `json:"category_name"`
+		TotalRevenue float64 `json:"total_revenue"`
+		TotalSold    int64   `json:"total_sold"`
+	}
+
+	topRevQuery := `
+        SELECT 
+            p.product_id,
+            p.product_code,
+            p.product_name,
+            pc.category_name,
+            SUM(sid.subtotal) as total_revenue,
+            SUM(sid.quantity) as total_sold
+        FROM supermarket.sales_invoice_details sid
+        JOIN supermarket.sales_invoices si ON sid.invoice_id = si.invoice_id
+        JOIN supermarket.products p ON sid.product_id = p.product_id
+        LEFT JOIN supermarket.product_categories pc ON p.category_id = pc.category_id
+        WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
+    `
+	topRevArgs := []interface{}{dateFrom, dateTo}
+	topRevIdx := 3
+	if categoryID != "" {
+		topRevQuery += fmt.Sprintf(" AND p.category_id = $%d", topRevIdx)
+		topRevArgs = append(topRevArgs, categoryID)
+		topRevIdx++
+	}
+	topRevQuery += `
+        GROUP BY p.product_id, p.product_code, p.product_name, pc.category_name
+        ORDER BY total_revenue DESC
+        LIMIT 10
+    `
+	if err = db.Raw(topRevQuery, topRevArgs...).Scan(&topByRevenue).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).Render("pages/error", fiber.Map{
+			"Title": "Lỗi",
+			"Error": "Không thể tải Top doanh thu: " + err.Error(),
+		})
+	}
+
+	// Top by units (top 10)
+	var topByUnits []struct {
+		ProductID    uint    `json:"product_id"`
+		ProductCode  string  `json:"product_code"`
+		ProductName  string  `json:"product_name"`
+		CategoryName string  `json:"category_name"`
+		TotalSold    int64   `json:"total_sold"`
+		TotalRevenue float64 `json:"total_revenue"`
+	}
+	topUnitQuery := `
+        SELECT 
+            p.product_id,
+            p.product_code,
+            p.product_name,
+            pc.category_name,
+            SUM(sid.quantity) as total_sold,
+            SUM(sid.subtotal) as total_revenue
+        FROM supermarket.sales_invoice_details sid
+        JOIN supermarket.sales_invoices si ON sid.invoice_id = si.invoice_id
+        JOIN supermarket.products p ON sid.product_id = p.product_id
+        LEFT JOIN supermarket.product_categories pc ON p.category_id = pc.category_id
+        WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
+    `
+	topUnitArgs := []interface{}{dateFrom, dateTo}
+	topUnitIdx := 3
+	if categoryID != "" {
+		topUnitQuery += fmt.Sprintf(" AND p.category_id = $%d", topUnitIdx)
+		topUnitArgs = append(topUnitArgs, categoryID)
+		topUnitIdx++
+	}
+	topUnitQuery += `
+        GROUP BY p.product_id, p.product_code, p.product_name, pc.category_name
+        ORDER BY total_sold DESC
+        LIMIT 10
+    `
+	if err = db.Raw(topUnitQuery, topUnitArgs...).Scan(&topByUnits).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).Render("pages/error", fiber.Map{
+			"Title": "Lỗi",
+			"Error": "Không thể tải Top theo số lượng: " + err.Error(),
+		})
+	}
+
 	// Get categories for filter
 	var categories []struct {
 		CategoryID   uint   `json:"category_id"`
@@ -417,14 +516,17 @@ func ProductReport(c *fiber.Ctx) error {
 	}
 
 	return c.Render("pages/reports/products", fiber.Map{
-		"Title":      "Báo cáo sản phẩm",
-		"Active":     "reports",
-		"Products":   products,
-		"Categories": categories,
+		"Title":        "Báo cáo sản phẩm",
+		"Active":       "reports",
+		"Products":     products,
+		"TopByRevenue": topByRevenue,
+		"TopByUnits":   topByUnits,
+		"Categories":   categories,
 		"Filters": fiber.Map{
 			"DateFrom":   dateFrom,
 			"DateTo":     dateTo,
 			"CategoryID": categoryID,
+			"Month":      monthStr,
 		},
 		"SQLQueries":      c.Locals("SQLQueries"),
 		"TotalSQLQueries": c.Locals("TotalSQLQueries"),
