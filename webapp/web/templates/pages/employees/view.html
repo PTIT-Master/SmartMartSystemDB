@@ -1,0 +1,43 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Thông tin nhân viên</h2>
+    <div>
+      <a class="btn btn-outline-primary" href="/employees/{{ .Employee.EmployeeID }}/edit">Sửa</a>
+      <a class="btn btn-secondary" href="/employees">Quay lại</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">{{ .Employee.FullName }}</h5>
+          <p class="card-text">Mã NV: <strong>{{ .Employee.EmployeeCode }}</strong></p>
+          <p class="card-text">Vị trí: <strong>{{ .Employee.PositionName }}</strong></p>
+          <p class="card-text">Ngày vào làm: <strong>{{ .Employee.HireDateText }}</strong></p>
+          <p class="card-text">Trạng thái: {{ if .Employee.IsActive }}<span class="badge bg-success">Đang làm</span>{{ else }}<span class="badge bg-secondary">Ngừng</span>{{ end }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Liên hệ</h5>
+          <div class="row">
+            <div class="col-md-6"><strong>Điện thoại:</strong> {{ .Employee.Phone }}</div>
+            <div class="col-md-6"><strong>Email:</strong> {{ .Employee.Email }}</div>
+            <div class="col-md-12 mt-2"><strong>Địa chỉ:</strong> {{ .Employee.Address }}</div>
+            <div class="col-md-6 mt-2"><strong>CMND/CCCD:</strong> {{ .Employee.IDCard }}</div>
+            <div class="col-md-6 mt-2"><strong>Tài khoản NH:</strong> {{ .Employee.BankAccount }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{ if .TotalSQLQueries }}
+  <div class="mt-3 text-muted"><small>SQL queries: {{ .TotalSQLQueries }}</small></div>
+  {{ end }}
+</div>
+
+

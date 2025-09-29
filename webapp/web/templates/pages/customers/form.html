@@ -1,0 +1,58 @@
+<div class="container">
+  <h2>{{ if .IsNew }}Thêm khách hàng{{ else }}Chỉnh sửa khách hàng{{ end }}</h2>
+
+  <form method="POST" action="{{ if .IsNew }}/customers{{ else }}/customers/{{ .Customer.CustomerID }}{{ end }}">
+    {{ if not .IsNew }}<input type="hidden" name="_method" value="PUT" />{{ end }}
+
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Mã KH</label>
+        <input name="customer_code" class="form-control" value="{{ if .Customer }}{{ .Customer.CustomerCode }}{{ end }}" />
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Họ tên</label>
+        <input name="full_name" class="form-control" value="{{ if .Customer }}{{ .Customer.FullName }}{{ end }}" required />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Điện thoại</label>
+        <input name="phone" class="form-control" value="{{ if .Customer }}{{ .Customer.Phone }}{{ end }}" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" value="{{ if .Customer }}{{ .Customer.Email }}{{ end }}" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Số thẻ thành viên</label>
+        <input name="membership_card_no" class="form-control" value="{{ if .Customer }}{{ .Customer.MembershipCardNo }}{{ end }}" />
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Địa chỉ</label>
+        <input name="address" class="form-control" value="{{ if .Customer }}{{ .Customer.Address }}{{ end }}" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Hạng thành viên</label>
+        <select name="membership_level_id" class="form-select">
+          <option value="">-- Không --</option>
+          {{ range .Levels }}
+            <option value="{{ .LevelID }}" {{ if $.Customer }}{{ if eq $.Customer.MembershipLevelID .LevelID }}selected{{ end }}{{ end }}>{{ .LevelName }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {{ if .Customer }}{{ if .Customer.IsActive }}checked{{ end }}{{ else }}checked{{ end }}>
+          <label class="form-check-label" for="is_active">Đang hoạt động</label>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">Lưu</button>
+        <a href="/customers" class="btn btn-secondary">Hủy</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+

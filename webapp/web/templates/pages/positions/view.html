@@ -1,0 +1,18 @@
+{{define "pages/positions/view"}}
+<div class="container">
+  <h1>{{ .Position.PositionName }}</h1>
+  <p><strong>Mã:</strong> {{ .Position.PositionCode }}</p>
+  <p><strong>Lương cơ bản:</strong> {{ .Position.BaseSalary }}</p>
+  <p><strong>Lương giờ:</strong> {{ .Position.HourlyRate }}</p>
+
+  <div style="margin: 12px 0;">
+    <a class="btn btn-primary" href="/positions/{{ .Position.PositionID }}/edit">Sửa</a>
+    <form method="post" action="/positions/{{ .Position.PositionID }}" style="display:inline;" onsubmit="return confirm('Xóa chức danh này?')">
+      <input type="hidden" name="_method" value="DELETE">
+      <button class="btn btn-danger" type="submit">Xóa</button>
+    </form>
+    <a class="btn" href="/positions">Quay lại</a>
+  </div>
+</div>
+{{end}}
+

@@ -1,0 +1,62 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Chấm công</h2>
+    <div>
+      <a href="/employees/work-hours/new" class="btn btn-primary">Thêm chấm công</a>
+      <a href="/employees/salary" class="btn btn-outline-secondary">Bảng lương</a>
+    </div>
+  </div>
+
+  <form class="row g-2 mb-3" method="GET" action="/employees/work-hours">
+    <div class="col-auto">
+      <select name="employee_id" class="form-select">
+        <option value="">Tất cả nhân viên</option>
+        {{ range .Employees }}
+          <option value="{{ .EmployeeID }}" {{ if eq (printf "%v" $.EmployeeID) (printf "%v" .EmployeeID) }}selected{{ end }}>{{ .FullName }}</option>
+        {{ end }}
+      </select>
+    </div>
+    <div class="col-auto">
+      <input class="form-control" name="month" placeholder="MM" value="{{ .Month }}" />
+    </div>
+    <div class="col-auto">
+      <input class="form-control" name="year" placeholder="YYYY" value="{{ .Year }}" />
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-outline-primary" type="submit">Lọc</button>
+    </div>
+  </form>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Ngày</th>
+        <th>Nhân viên</th>
+        <th>Vào</th>
+        <th>Ra</th>
+        <th>Giờ công</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Rows }}
+      <tr>
+        <td>{{ .WorkDate }}</td>
+        <td>{{ .FullName }}</td>
+        <td>{{ .CheckIn }}</td>
+        <td>{{ .CheckOut }}</td>
+        <td>{{ .TotalHours }}</td>
+        <td class="text-end">
+          <a href="/employees/work-hours/{{ .WorkHourID }}/edit" class="btn btn-sm btn-outline-primary">Sửa</a>
+          <form method="POST" action="/employees/work-hours/{{ .WorkHourID }}" style="display:inline" onsubmit="return confirm('Xóa bản ghi?');">
+            <input type="hidden" name="_method" value="DELETE" />
+            <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+          </form>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+

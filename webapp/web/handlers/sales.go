@@ -452,6 +452,48 @@ func SalesCreate(c *fiber.Ctx) error {
 		}
 	}
 
+	// Load customer membership and points if provided
+	var membershipDiscount float64 = 0
+	var customerAvailablePoints int = 0
+	var customerID *uint
+	if customerIDStr != "" {
+		var tmpID uint64
+		tmpID, err = strconv.ParseUint(customerIDStr, 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "ID khách hàng không hợp lệ",
+			})
+		}
+		cid := uint(tmpID)
+		customerID = &cid
+
+		var cust struct {
+			LoyaltyPoints      int
+			MembershipDiscount float64
+		}
+		err = db.Raw(`
+			SELECT 
+				c.loyalty_points,
+				COALESCE(ml.discount_percentage, 0) AS membership_discount
+			FROM supermarket.customers c
+			LEFT JOIN supermarket.membership_levels ml ON c.membership_level_id = ml.level_id
+			WHERE c.customer_id = $1
+		`, customerID).Scan(&cust).Error
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Không thể tải thông tin khách hàng: " + err.Error(),
+			})
+		}
+		customerAvailablePoints = cust.LoyaltyPoints
+		membershipDiscount = cust.MembershipDiscount
+		// Validate points usage does not exceed available
+		if pointsUsed > customerAvailablePoints {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Điểm sử dụng vượt quá số điểm hiện có",
+			})
+		}
+	}
+
 	// Parse products from form
 	productIDs := c.FormValue("product_ids")
 	quantities := c.FormValue("quantities")
@@ -529,7 +571,17 @@ func SalesCreate(c *fiber.Ctx) error {
 		})
 	}
 
-	// Add invoice details
+	// First pass to compute per-item subtotals with base + membership discount
+	type itemCalc struct {
+		productID       uint64
+		quantity        int
+		unitPrice       float64
+		baseDiscountPct float64
+		effectivePct    float64
+		lineSubtotal    float64
+		lineNetBeforePt float64
+	}
+	items := make([]itemCalc, 0, len(productIDList))
 	for i, productIDStr := range productIDList {
 		productID, err := strconv.ParseUint(productIDStr, 10, 64)
 		if err != nil {
@@ -566,17 +618,74 @@ func SalesCreate(c *fiber.Ctx) error {
 			}
 		}
 
-		// Insert invoice detail - triggers will handle calculations and stock deduction
+		// Apply membership discount on top of base discount
+		effectivePct := discountPercentage + membershipDiscount
+		if effectivePct > 100 {
+			effectivePct = 100
+		}
+		lineSubtotal := float64(quantity) * unitPrice
+		lineNet := lineSubtotal * (1 - effectivePct/100.0)
+		items = append(items, itemCalc{
+			productID:       productID,
+			quantity:        quantity,
+			unitPrice:       unitPrice,
+			baseDiscountPct: discountPercentage,
+			effectivePct:    effectivePct,
+			lineSubtotal:    lineSubtotal,
+			lineNetBeforePt: lineNet,
+		})
+	}
+
+	// Distribute points discount (1000 points = 1 VND)
+	pointsDiscountVND := float64(pointsUsed) / 1000.0
+	var totalNetBeforePoints float64 = 0
+	for _, it := range items {
+		totalNetBeforePoints += it.lineNetBeforePt
+	}
+
+	// Guard against over-discounting
+	if pointsDiscountVND > totalNetBeforePoints {
+		pointsDiscountVND = totalNetBeforePoints
+	}
+
+	// Insert invoice details with final discount percentages (including membership and points)
+	for _, it := range items {
+		finalPct := it.effectivePct
+		if totalNetBeforePoints > 0 && it.lineSubtotal > 0 && pointsDiscountVND > 0 {
+			// prorate extra discount value to this item
+			prorata := it.lineNetBeforePt / totalNetBeforePoints
+			extraVND := pointsDiscountVND * prorata
+			extraPct := (extraVND / it.lineSubtotal) * 100.0
+			finalPct += extraPct
+		}
+		if finalPct > 100 {
+			finalPct = 100
+		}
+
 		err = tx.Exec(`
 			INSERT INTO supermarket.sales_invoice_details 
 			(invoice_id, product_id, quantity, unit_price, discount_percentage)
 			VALUES ($1, $2, $3, $4, $5)
-		`, invoiceID, productID, quantity, unitPrice, discountPercentage).Error
-
+		`, invoiceID, it.productID, it.quantity, it.unitPrice, finalPct).Error
 		if err != nil {
 			tx.Rollback()
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Không thể thêm chi tiết hóa đơn: " + err.Error(),
+			})
+		}
+	}
+
+	// Deduct used points from customer balance if applicable
+	if customerID != nil && pointsUsed > 0 {
+		err = tx.Exec(`
+			UPDATE supermarket.customers
+			SET loyalty_points = GREATEST(loyalty_points - $1, 0), updated_at = CURRENT_TIMESTAMP
+			WHERE customer_id = $2
+		`, pointsUsed, *customerID).Error
+		if err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Không thể trừ điểm khách hàng: " + err.Error(),
 			})
 		}
 	}

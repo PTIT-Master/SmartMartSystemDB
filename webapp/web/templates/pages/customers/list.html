@@ -1,0 +1,45 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Khách hàng</h2>
+    <a href="/customers/new" class="btn btn-primary">Thêm khách hàng</a>
+  </div>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Mã</th>
+        <th>Họ tên</th>
+        <th>Điện thoại</th>
+        <th>Email</th>
+        <th>Hạng thành viên</th>
+        <th>Tổng chi tiêu</th>
+        <th>Điểm</th>
+        <th>Lần mua gần nhất</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Customers }}
+      <tr>
+        <td>{{ .CustomerID }}</td>
+        <td><a href="/customers/{{ .CustomerID }}">{{ .FullName }}</a></td>
+        <td>{{ .Phone }}</td>
+        <td>{{ .Email }}</td>
+        <td>{{ .MembershipLevel }}</td>
+        <td>{{ printf "%.0f" .TotalSpending }}</td>
+        <td>{{ .LoyaltyPoints }}</td>
+        <td>{{ .LastPurchase }}</td>
+        <td class="text-end">
+          <a href="/customers/{{ .CustomerID }}/edit" class="btn btn-sm btn-outline-primary">Sửa</a>
+          <form method="POST" action="/customers/{{ .CustomerID }}" style="display:inline" onsubmit="return confirm('Xóa khách hàng này?');">
+            <input type="hidden" name="_method" value="DELETE" />
+            <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+          </form>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+

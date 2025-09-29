@@ -1,0 +1,40 @@
+<div class="container">
+  <h2>{{ if .IsNew }}Thêm chấm công{{ else }}Sửa chấm công{{ end }}</h2>
+
+  <form method="POST" action="{{ if .IsNew }}/employees/work-hours{{ else }}/employees/work-hours/{{ .Row.WorkHourID }}{{ end }}">
+    {{ if not .IsNew }}
+      <input type="hidden" name="_method" value="PUT" />
+    {{ end }}
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Nhân viên</label>
+        <select class="form-select" name="employee_id" required>
+          {{ range .Employees }}
+            <option value="{{ .EmployeeID }}" {{ if $.Row }}{{ if eq $.Row.EmployeeID .EmployeeID }}selected{{ end }}{{ end }}>{{ .FullName }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Ngày</label>
+        <input class="form-control" type="date" name="work_date" value="{{ if .Row }}{{ .Row.WorkDate }}{{ end }}" required />
+      </div>
+      <div class="col-md-3"></div>
+
+      <div class="col-md-3">
+        <label class="form-label">Giờ vào</label>
+        <input class="form-control" type="datetime-local" name="check_in_time" value="{{ if .Row }}{{ .Row.CheckIn }}{{ end }}" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Giờ ra</label>
+        <input class="form-control" type="datetime-local" name="check_out_time" value="{{ if .Row }}{{ .Row.CheckOut }}{{ end }}" />
+      </div>
+
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <a href="/employees/work-hours" class="btn btn-secondary">Hủy</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+

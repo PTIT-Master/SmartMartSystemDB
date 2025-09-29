@@ -1,0 +1,37 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Bảng lương</h2>
+    <form class="d-flex" method="GET" action="/employees/salary">
+      <input class="form-control me-2" name="month" placeholder="MM" value="{{ .Month }}" />
+      <input class="form-control me-2" name="year" placeholder="YYYY" value="{{ .Year }}" />
+      <button class="btn btn-outline-primary" type="submit">Xem</button>
+    </form>
+  </div>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Nhân viên</th>
+        <th>Vị trí</th>
+        <th>Lương cơ bản</th>
+        <th>Hệ số giờ</th>
+        <th>Giờ công</th>
+        <th>Tổng lương</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Rows }}
+      <tr>
+        <td>{{ .FullName }}</td>
+        <td>{{ .PositionName }}</td>
+        <td>{{ printf "%.0f" .BaseSalary }}</td>
+        <td>{{ printf "%.0f" .HourlyRate }}</td>
+        <td>{{ printf "%.2f" .TotalHours }}</td>
+        <td><strong>{{ printf "%.0f" .TotalSalary }}</strong></td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+

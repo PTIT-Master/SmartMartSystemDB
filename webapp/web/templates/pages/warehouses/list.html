@@ -1,0 +1,37 @@
+{{define "pages/warehouses/list"}}
+<div class="container">
+  <h1>{{ .Title }}</h1>
+  <div class="actions" style="margin: 12px 0;">
+    <a href="/warehouses/new" class="btn btn-primary">Thêm kho</a>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Mã kho</th>
+        <th>Tên kho</th>
+        <th>Vị trí</th>
+        <th>Quản lý</th>
+        <th>Sức chứa</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Warehouses }}
+      <tr>
+        <td>{{ .WarehouseCode }}</td>
+        <td><a href="/warehouses/{{ .WarehouseID }}">{{ .WarehouseName }}</a></td>
+        <td>{{ .Location }}</td>
+        <td>{{ .ManagerName }}</td>
+        <td>{{ .Capacity }}</td>
+        <td>
+          <a href="/warehouses/{{ .WarehouseID }}/edit">Sửa</a>
+        </td>
+      </tr>
+      {{ else }}
+      <tr><td colspan="6">Chưa có kho nào.</td></tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{end}}
+

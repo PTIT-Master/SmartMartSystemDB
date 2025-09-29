@@ -26,15 +26,25 @@ func ProductList(c *fiber.Ctx) error {
 		TotalQuantity     int64
 	}
 
+	// Sorting control
+	sortBy := c.Query("sort", "name") // name | total_asc | total_desc
+
 	// Use VIEW for better database learning
 	query := `
-		SELECT 
-			product_id, product_code, product_name, category_name,
-			supplier_name, selling_price, import_price,
-			warehouse_quantity, shelf_quantity, total_quantity
-		FROM supermarket.v_product_overview
-		ORDER BY product_name
-	`
+        SELECT 
+            product_id, product_code, product_name, category_name,
+            supplier_name, selling_price, import_price,
+            warehouse_quantity, shelf_quantity, total_quantity
+        FROM supermarket.v_product_overview
+    `
+	switch sortBy {
+	case "total_asc":
+		query += " ORDER BY total_quantity ASC, product_name"
+	case "total_desc":
+		query += " ORDER BY total_quantity DESC, product_name"
+	default:
+		query += " ORDER BY product_name"
+	}
 
 	// Execute query with error handling
 	err := db.Raw(query).Scan(&products).Error
@@ -47,6 +57,7 @@ func ProductList(c *fiber.Ctx) error {
 		"Title":           "Quản lý sản phẩm",
 		"Active":          "products",
 		"Products":        products,
+		"SortBy":          sortBy,
 		"SQLQueries":      c.Locals("SQLQueries"),
 		"TotalSQLQueries": c.Locals("TotalSQLQueries"),
 	}, "layouts/base")

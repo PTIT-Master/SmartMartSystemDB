@@ -1,0 +1,29 @@
+{{define "pages/positions/form"}}
+<div class="container">
+  <h1>{{ if .IsNew }}Thêm chức danh{{ else }}Sửa chức danh{{ end }}</h1>
+  <form method="post" action="{{ if .IsNew }}/positions{{ else }}/positions/{{ .Position.PositionID }}{{ end }}">
+    {{ if not .IsNew }}<input type="hidden" name="_method" value="PUT">{{ end }}
+    <div class="form-group">
+      <label>Mã</label>
+      <input class="form-control" name="position_code" value="{{ if .Position }}{{ .Position.PositionCode }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Chức danh</label>
+      <input class="form-control" name="position_name" value="{{ if .Position }}{{ .Position.PositionName }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Lương cơ bản</label>
+      <input class="form-control" name="base_salary" type="number" step="0.01" min="0" value="{{ if .Position }}{{ .Position.BaseSalary }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Lương giờ</label>
+      <input class="form-control" name="hourly_rate" type="number" step="0.01" min="0" value="{{ if .Position }}{{ .Position.HourlyRate }}{{ end }}" required>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn btn-primary" type="submit">Lưu</button>
+      <a class="btn" href="/positions">Hủy</a>
+    </div>
+  </form>
+</div>
+{{end}}
+

@@ -50,7 +50,7 @@
         <div class="section-header">
             <h3><i class="fas fa-times-circle"></i> Sản phẩm đã hết hạn</h3>
             <div class="header-actions">
-                <span class="badge badge-danger">{{len .ExpiredProducts}} lô hàng</span>
+                <span class=" badge-danger">{{len .ExpiredProducts}} lô hàng</span>
                 <button class="btn btn-sm btn-danger" onclick="disposeAllExpired()">
                     <i class="fas fa-trash"></i> Hủy tất cả
                 </button>
@@ -86,9 +86,9 @@
                         </td>
                         <td>
                             {{if eq .InventoryType "Kho"}}
-                                <span class="badge badge-secondary">Kho</span>
+                                <span class=" badge-secondary">Kho</span>
                             {{else}}
-                                <span class="badge badge-info">Kệ</span>
+                                <span class=" badge-info">Kệ</span>
                             {{end}}
                             <br><small>{{.LocationName}}</small>
                         </td>
@@ -101,7 +101,7 @@
                         <td><strong>{{.Quantity}}</strong></td>
                         <td>{{.ExpiryDate.Format "02/01/2006"}}</td>
                         <td>
-                            <span class="badge badge-danger">{{.DaysExpired}} ngày</span>
+                            <span class=" badge-danger">{{.DaysExpired}} ngày</span>
                         </td>
                         <td>{{printf "%.0f" .ImportPrice | }}</td>
                         <td class="text-danger">

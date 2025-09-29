@@ -1,0 +1,33 @@
+{{define "pages/positions/list"}}
+<div class="container">
+  <h1>{{ .Title }}</h1>
+  <div style="margin:12px 0;">
+    <a href="/positions/new" class="btn btn-primary">Thêm chức danh</a>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Mã</th>
+        <th>Chức danh</th>
+        <th>Lương cơ bản</th>
+        <th>Giờ công</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Positions}}
+      <tr>
+        <td>{{.PositionCode}}</td>
+        <td><a href="/positions/{{.PositionID}}">{{.PositionName}}</a></td>
+        <td>{{.BaseSalary}}</td>
+        <td>{{.HourlyRate}}</td>
+        <td><a href="/positions/{{.PositionID}}/edit">Sửa</a></td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">Chưa có chức danh.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+

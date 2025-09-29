@@ -120,15 +120,15 @@
                                     </td>
                                     <td>
                                         {{if eq .Status "PENDING"}}
-                                        <span class="badge badge-warning">Chờ duyệt</span>
+                                        <span class=" badge-warning">Chờ duyệt</span>
                                         {{else if eq .Status "APPROVED"}}
-                                        <span class="badge badge-info">Đã duyệt</span>
+                                        <span class=" badge-info">Đã duyệt</span>
                                         {{else if eq .Status "RECEIVED"}}
-                                        <span class="badge badge-success">Đã nhận</span>
+                                        <span class=" badge-success">Đã nhận</span>
                                         {{else if eq .Status "CANCELLED"}}
-                                        <span class="badge badge-danger">Đã hủy</span>
+                                        <span class=" badge-danger">Đã hủy</span>
                                         {{else}}
-                                        <span class="badge badge-secondary">{{.Status}}</span>
+                                        <span class=" badge-secondary">{{.Status}}</span>
                                         {{end}}
                                     </td>
                                     <td>

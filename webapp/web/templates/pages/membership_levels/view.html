@@ -1,0 +1,19 @@
+{{define "pages/membership_levels/view"}}
+<div class="container">
+  <h1>{{ .Level.LevelName }}</h1>
+  <p><strong>Tối thiểu (VND):</strong> {{ .Level.MinSpending }}</p>
+  <p><strong>Giảm (%):</strong> {{ .Level.DiscountPercentage }}</p>
+  <p><strong>Hệ số điểm:</strong> {{ .Level.PointsMultiplier }}</p>
+  <p><strong>Số khách hàng hiện tại:</strong> {{ .CustomerCount }}</p>
+
+  <div style="margin: 12px 0;">
+    <a class="btn btn-primary" href="/membership-levels/{{ .Level.LevelID }}/edit">Sửa</a>
+    <form method="post" action="/membership-levels/{{ .Level.LevelID }}" style="display:inline;" onsubmit="return confirm('Xóa cấp thành viên này?')">
+      <input type="hidden" name="_method" value="DELETE">
+      <button class="btn btn-danger" type="submit">Xóa</button>
+    </form>
+    <a class="btn" href="/membership-levels">Quay lại</a>
+  </div>
+</div>
+{{end}}
+

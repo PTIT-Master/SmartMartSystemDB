@@ -1,0 +1,88 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Báo cáo doanh thu</h2>
+    <form class="d-flex" method="GET" action="/reports/revenue">
+      <input class="form-control me-2" type="date" name="date_from" value="{{ .Filters.DateFrom }}" />
+      <input class="form-control me-2" type="date" name="date_to" value="{{ .Filters.DateTo }}" />
+      <button class="btn btn-outline-primary" type="submit">Lọc</button>
+    </form>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="card-header">Doanh thu theo ngày</div>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Ngày</th>
+              <th>Doanh thu</th>
+              <th>Hóa đơn</th>
+              <th>TB hóa đơn</th>
+              <th>Khách hàng</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .RevenueData }}
+            <tr>
+              <td>{{ .Period }}</td>
+              <td>{{ printf "%.0f" .TotalRevenue }}</td>
+              <td>{{ .TotalInvoices }}</td>
+              <td>{{ printf "%.0f" .AvgInvoice }}</td>
+              <td>{{ .TotalCustomers }}</td>
+            </tr>
+            {{ else }}
+            <tr><td colspan="5" class="text-center">Không có dữ liệu</td></tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="card-header">Doanh thu theo danh mục</div>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Danh mục</th>
+              <th>Doanh thu</th>
+              <th>SL bán</th>
+              <th>Giá TB</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .CategoryRevenue }}
+            <tr>
+              <td>{{ .CategoryName }}</td>
+              <td>{{ printf "%.0f" .TotalRevenue }}</td>
+              <td>{{ .TotalSold }}</td>
+              <td>{{ printf "%.0f" .AvgPrice }}</td>
+            </tr>
+            {{ else }}
+            <tr><td colspan="4" class="text-center">Không có dữ liệu</td></tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <div class="card-header">Tổng kết</div>
+        <table class="table">
+          <tr><th>Doanh thu</th><td>{{ printf "%.0f" .Summary.TotalRevenue }}</td></tr>
+          <tr><th>Giảm giá</th><td>{{ printf "%.0f" .Summary.TotalDiscount }}</td></tr>
+          <tr><th>Thuế</th><td>{{ printf "%.0f" .Summary.TotalTax }}</td></tr>
+          <tr><th>Doanh thu thuần</th><td>{{ printf "%.0f" .Summary.NetRevenue }}</td></tr>
+          <tr><th>Số hóa đơn</th><td>{{ .Summary.TotalInvoices }}</td></tr>
+          <tr><th>Trung bình HĐ</th><td>{{ printf "%.0f" .Summary.AvgInvoiceValue }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+

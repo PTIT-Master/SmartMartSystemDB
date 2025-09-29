@@ -1,0 +1,39 @@
+{{define "pages/warehouses/view"}}
+<div class="container">
+  <h1>{{ .Warehouse.WarehouseName }}</h1>
+  <p><strong>Mã kho:</strong> {{ .Warehouse.WarehouseCode }}</p>
+  <p><strong>Vị trí:</strong> {{ .Warehouse.Location }}</p>
+  <p><strong>Quản lý:</strong> {{ .Warehouse.ManagerName }}</p>
+  <p><strong>Sức chứa:</strong> {{ .Warehouse.Capacity }}</p>
+
+  <div style="margin: 12px 0;">
+    <a class="btn btn-primary" href="/warehouses/{{ .Warehouse.WarehouseID }}/edit">Sửa</a>
+    <form method="post" action="/warehouses/{{ .Warehouse.WarehouseID }}" style="display:inline;" onsubmit="return confirm('Xóa kho này?')">
+      <input type="hidden" name="_method" value="DELETE">
+      <button class="btn btn-danger" type="submit">Xóa</button>
+    </form>
+    <a class="btn" href="/warehouses">Quay lại</a>
+  </div>
+
+  <h2>Tồn kho</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Sản phẩm</th>
+        <th>Số lượng</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Inventory }}
+      <tr>
+        <td>{{ .ProductName }}</td>
+        <td>{{ .Quantity }}</td>
+      </tr>
+      {{ else }}
+      <tr><td colspan="2">Không có hàng.</td></tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{end}}
+

@@ -1,0 +1,53 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Báo cáo sản phẩm</h2>
+    <form class="d-flex flex-wrap" method="GET" action="/reports/products" style="gap:8px;">
+      <input class="form-control" type="date" name="date_from" value="{{ .Filters.DateFrom }}" />
+      <input class="form-control" type="date" name="date_to" value="{{ .Filters.DateTo }}" />
+      <input class="form-control" type="month" name="month" placeholder="YYYY-MM" />
+      <select class="form-select" name="category_id">
+        <option value="">Tất cả danh mục</option>
+        {{ range .Categories }}
+          <option value="{{ .CategoryID }}" {{ if eq (printf "%v" $.Filters.CategoryID) (printf "%v" .CategoryID) }}selected{{ end }}>{{ .CategoryName }}</option>
+        {{ end }}
+      </select>
+      <button class="btn btn-outline-primary" type="submit">Lọc</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Hiệu suất sản phẩm</div>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Mã</th>
+          <th>Tên</th>
+          <th>Danh mục</th>
+          <th>SL bán</th>
+          <th>Doanh thu</th>
+          <th>Giá TB</th>
+          <th>Hóa đơn</th>
+          <th>Khách hàng</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Products }}
+        <tr>
+          <td>{{ .ProductCode }}</td>
+          <td>{{ .ProductName }}</td>
+          <td>{{ .CategoryName }}</td>
+          <td>{{ .TotalSold }}</td>
+          <td>{{ printf "%.0f" .TotalRevenue }}</td>
+          <td>{{ printf "%.0f" .AvgPrice }}</td>
+          <td>{{ .InvoiceCount }}</td>
+          <td>{{ .CustomerCount }}</td>
+        </tr>
+        {{ else }}
+        <tr><td colspan="8" class="text-center">Không có dữ liệu</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+

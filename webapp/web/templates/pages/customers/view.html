@@ -1,0 +1,66 @@
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Thông tin khách hàng</h2>
+    <div>
+      <a class="btn btn-outline-primary" href="/customers/{{ .Customer.CustomerID }}/edit">Sửa</a>
+      <a class="btn btn-secondary" href="/customers">Quay lại</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">{{ .Customer.FullName }}</h5>
+          <p class="card-text">Mã KH: <strong>{{ .Customer.CustomerCode }}</strong></p>
+          <p class="card-text">Hạng: <strong>{{ .Customer.LevelName }}</strong></p>
+          <p class="card-text">Điểm: <strong>{{ .Customer.LoyaltyPoints }}</strong></p>
+          <p class="card-text">Trạng thái: {{ if .Customer.IsActive }}<span class="badge bg-success">Active</span>{{ else }}<span class="badge bg-secondary">Inactive</span>{{ end }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Liên hệ</h5>
+          <div class="row">
+            <div class="col-md-6"><strong>Điện thoại:</strong> {{ .Customer.Phone }}</div>
+            <div class="col-md-6"><strong>Email:</strong> {{ .Customer.Email }}</div>
+            <div class="col-md-12 mt-2"><strong>Địa chỉ:</strong> {{ .Customer.Address }}</div>
+            <div class="col-md-12 mt-2"><strong>Số thẻ:</strong> {{ .Customer.MembershipCardNo }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-body">
+          <h5 class="card-title">Hóa đơn gần đây</h5>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Số hóa đơn</th>
+                <th>Thời gian</th>
+                <th>Tổng tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{ range .Invoices }}
+              <tr>
+                <td><a href="/sales/invoice/{{ .InvoiceID }}">{{ .InvoiceNo }}</a></td>
+                <td>{{ .InvoiceDate }}</td>
+                <td>{{ printf "%.0f" .TotalAmount }}</td>
+              </tr>
+              {{ else }}
+              <tr>
+                <td colspan="3" class="text-center">Chưa có hóa đơn</td>
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

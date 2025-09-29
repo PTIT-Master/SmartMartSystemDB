@@ -79,6 +79,17 @@ CREATE TRIGGER tr_check_low_stock
     EXECUTE FUNCTION check_low_stock();
 
 -- ============================================================================
+-- 8. PURCHASE ORDER RECEIPT → WAREHOUSE INVENTORY
+-- ============================================================================
+
+-- 8.1 Process purchase receipt
+DROP TRIGGER IF EXISTS tr_process_purchase_receipt ON purchase_orders;
+CREATE TRIGGER tr_process_purchase_receipt
+    AFTER UPDATE OF status ON purchase_orders
+    FOR EACH ROW
+    EXECUTE FUNCTION process_purchase_receipt();
+
+-- ============================================================================
 -- 3. CUSTOMER MANAGEMENT TRIGGERS
 -- ============================================================================
 

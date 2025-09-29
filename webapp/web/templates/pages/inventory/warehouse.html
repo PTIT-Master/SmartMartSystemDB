@@ -128,7 +128,7 @@
                             <td>
                                 <strong>{{.Quantity}}</strong>
                                 {{if lt .Quantity 10}}
-                                <span class="badge badge-warning">Sắp hết</span>
+                                <span class=" badge-warning">Sắp hết</span>
                                 {{end}}
                             </td>
                             <td>{{.ImportDate.Format "02/01/2006"}}</td>
@@ -141,18 +141,21 @@
                                     <br><small class="text-warning">Còn {{.DaysUntilExpiry}} ngày</small>
                                     {{end}}
                                 {{else}}
-                                    <span class="text-muted">-</span>
+                                    <div class="d-flex align-items-center" style="gap:4px;min-width:180px;">
+                                        <input type="date" class="form-control form-control-sm" id="expiry-input-{{.InventoryID}}">
+                                        <button class="btn btn-sm btn-success" onclick="saveExpiry({{.InventoryID}})">Lưu</button>
+                                    </div>
                                 {{end}}
                             </td>
                             <td>{{printf "%.0f" .ImportPrice | }}</td>
                             <td><strong>{{printf "%.0f" .TotalValue | }}</strong></td>
                             <td>
                                 {{if eq .ExpiryStatus "Hết hạn"}}
-                                <span class="badge badge-danger">{{.ExpiryStatus}}</span>
+                                <span class=" badge-danger">{{.ExpiryStatus}}</span>
                                 {{else if eq .ExpiryStatus "Sắp hết hạn"}}
-                                <span class="badge badge-warning">{{.ExpiryStatus}}</span>
+                                <span class=" badge-warning">{{.ExpiryStatus}}</span>
                                 {{else}}
-                                <span class="badge badge-success">{{.ExpiryStatus}}</span>
+                                <span class=" badge-success">{{.ExpiryStatus}}</span>
                                 {{end}}
                             </td>
                             <td>
@@ -310,6 +313,31 @@ function disposeProduct(inventoryId) {
 function exportInventory() {
     const params = new URLSearchParams(window.location.search);
     window.open('/api/inventory/export/warehouse?' + params.toString());
+}
+
+async function saveExpiry(inventoryId) {
+    const input = document.getElementById('expiry-input-' + inventoryId);
+    const value = input && input.value;
+    if (!value) {
+        alert('Vui lòng chọn ngày hết hạn');
+        return;
+    }
+    try {
+        const res = await fetch('/api/inventory/warehouse/expiry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inventory_id: inventoryId, expiry_date: value })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Đã lưu hạn sử dụng');
+            location.reload();
+        } else {
+            alert('Lỗi: ' + (data.message || 'Không thể lưu'));
+        }
+    } catch (e) {
+        alert('Lỗi mạng: ' + e.message);
+    }
 }
 </script>
 {{end}}

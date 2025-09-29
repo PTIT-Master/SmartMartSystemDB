@@ -100,16 +100,16 @@ func ReportsOverview(c *fiber.Ctx) error {
 	}
 
 	err = db.Raw(`
-		SELECT 
-			TO_CHAR(invoice_date, 'YYYY-MM-DD') as date,
-			SUM(total_amount) as revenue,
-			COUNT(invoice_id) as invoices
-		FROM supermarket.sales_invoices
-		WHERE DATE(invoice_date) BETWEEN $1 AND $2
-		GROUP BY DATE(invoice_date)
-		ORDER BY date DESC
-		LIMIT 7
-	`, dateFrom, dateTo).Scan(&trendData).Error
+        SELECT 
+            DATE(invoice_date)::text as date,
+            SUM(total_amount) as revenue,
+            COUNT(invoice_id) as invoices
+        FROM supermarket.sales_invoices
+        WHERE DATE(invoice_date) BETWEEN $1 AND $2
+        GROUP BY DATE(invoice_date)
+        ORDER BY DATE(invoice_date) DESC
+        LIMIT 7
+    `, dateFrom, dateTo).Scan(&trendData).Error
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).Render("pages/error", fiber.Map{
@@ -192,7 +192,7 @@ func SalesReport(c *fiber.Ctx) error {
 			FROM supermarket.sales_invoices si
 			WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
 			GROUP BY DATE_TRUNC('week', si.invoice_date)
-			ORDER BY period DESC
+			ORDER BY DATE_TRUNC('week', si.invoice_date) DESC
 		`
 	case "month":
 		trendQuery = `
@@ -204,19 +204,19 @@ func SalesReport(c *fiber.Ctx) error {
 			FROM supermarket.sales_invoices si
 			WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
 			GROUP BY DATE_TRUNC('month', si.invoice_date)
-			ORDER BY period DESC
+			ORDER BY DATE_TRUNC('month', si.invoice_date) DESC
 		`
 	default: // day
 		trendQuery = `
 			SELECT 
-				TO_CHAR(si.invoice_date, 'YYYY-MM-DD') as period,
+				TO_CHAR(DATE(si.invoice_date), 'YYYY-MM-DD') as period,
 				COALESCE(SUM(si.total_amount), 0) as revenue,
 				COUNT(DISTINCT si.invoice_id) as invoices,
 				COUNT(DISTINCT si.customer_id) as customers
 			FROM supermarket.sales_invoices si
 			WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
 			GROUP BY DATE(si.invoice_date)
-			ORDER BY period DESC
+			ORDER BY DATE(si.invoice_date) DESC
 		`
 	}
 
@@ -449,17 +449,17 @@ func RevenueReport(c *fiber.Ctx) error {
 	}
 
 	err := db.Raw(`
-		SELECT 
-			TO_CHAR(si.invoice_date, 'YYYY-MM-DD') as period,
-			SUM(si.total_amount) as total_revenue,
-			COUNT(si.invoice_id) as total_invoices,
-			AVG(si.total_amount) as avg_invoice,
-			COUNT(DISTINCT si.customer_id) as total_customers
-		FROM supermarket.sales_invoices si
-		WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
-		GROUP BY DATE(si.invoice_date)
-		ORDER BY period DESC
-	`, dateFrom, dateTo).Scan(&revenueData).Error
+        SELECT 
+            DATE(si.invoice_date)::text as period,
+            SUM(si.total_amount) as total_revenue,
+            COUNT(si.invoice_id) as total_invoices,
+            AVG(si.total_amount) as avg_invoice,
+            COUNT(DISTINCT si.customer_id) as total_customers
+        FROM supermarket.sales_invoices si
+        WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
+        GROUP BY DATE(si.invoice_date)
+        ORDER BY DATE(si.invoice_date) DESC
+    `, dateFrom, dateTo).Scan(&revenueData).Error
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).Render("pages/error", fiber.Map{
@@ -562,22 +562,22 @@ func SupplierReport(c *fiber.Ctx) error {
 	}
 
 	err := db.Raw(`
-		SELECT 
-			s.supplier_id,
-			s.supplier_name,
-			s.contact_phone,
-			SUM(sid.subtotal) as total_revenue,
-			SUM(sid.quantity) as total_sold,
-			COUNT(DISTINCT p.product_id) as product_count,
-			AVG(sid.unit_price) as avg_price
-		FROM supermarket.sales_invoice_details sid
-		JOIN supermarket.sales_invoices si ON sid.invoice_id = si.invoice_id
-		JOIN supermarket.products p ON sid.product_id = p.product_id
-		JOIN supermarket.suppliers s ON p.supplier_id = s.supplier_id
-		WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
-		GROUP BY s.supplier_id, s.supplier_name, s.contact_phone
-		ORDER BY total_revenue DESC
-	`, dateFrom, dateTo).Scan(&supplierRevenue).Error
+        SELECT 
+            s.supplier_id,
+            s.supplier_name,
+            COALESCE(s.phone, '') as contact_phone,
+            SUM(sid.subtotal) as total_revenue,
+            SUM(sid.quantity) as total_sold,
+            COUNT(DISTINCT p.product_id) as product_count,
+            AVG(sid.unit_price) as avg_price
+        FROM supermarket.sales_invoice_details sid
+        JOIN supermarket.sales_invoices si ON sid.invoice_id = si.invoice_id
+        JOIN supermarket.products p ON sid.product_id = p.product_id
+        JOIN supermarket.suppliers s ON p.supplier_id = s.supplier_id
+        WHERE DATE(si.invoice_date) BETWEEN $1 AND $2
+        GROUP BY s.supplier_id, s.supplier_name, s.phone
+        ORDER BY total_revenue DESC
+    `, dateFrom, dateTo).Scan(&supplierRevenue).Error
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).Render("pages/error", fiber.Map{

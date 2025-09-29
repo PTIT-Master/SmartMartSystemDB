@@ -34,6 +34,9 @@ func NewServer() *Server {
 	engine.AddFunc("formatDate", func(t time.Time) string {
 		return t.Format("02/01/2006 15:04")
 	})
+	engine.AddFunc("formatDateYMD", func(t time.Time) string {
+		return t.Format("2006-01-02")
+	})
 	engine.AddFunc("formatCurrency", func(amount float64) string {
 		return fmt.Sprintf("%.0f VND", amount)
 	})
@@ -183,11 +186,21 @@ func setupRoutes(app *fiber.App) {
 	products.Put("/:id", handlers.ProductUpdate)
 	products.Delete("/:id", handlers.ProductDelete)
 
-	// Employee management
+	// Employee management (order matters: specific routes before ":id")
 	employees := app.Group("/employees")
+	// Specific subroutes first
+	employees.Get("/work-hours", handlers.WorkHourList)
+	employees.Get("/work-hours/new", handlers.WorkHourNew)
+	employees.Post("/work-hours", handlers.WorkHourCreate)
+	employees.Get("/work-hours/:id/edit", handlers.WorkHourEdit)
+	employees.Put("/work-hours/:id", handlers.WorkHourUpdate)
+	employees.Delete("/work-hours/:id", handlers.WorkHourDelete)
+	employees.Get("/salary", handlers.SalarySummary)
+	// Then base list/create
 	employees.Get("/", handlers.EmployeeList)
 	employees.Get("/new", handlers.EmployeeNew)
 	employees.Post("/", handlers.EmployeeCreate)
+	// Finally ID-based routes
 	employees.Get("/:id", handlers.EmployeeView)
 	employees.Get("/:id/edit", handlers.EmployeeEdit)
 	employees.Put("/:id", handlers.EmployeeUpdate)
@@ -259,6 +272,26 @@ func setupRoutes(app *fiber.App) {
 	reports.Get("/suppliers", handlers.SupplierReport)
 	reports.Get("/customers", handlers.CustomerReport)
 
+	// Positions admin
+	positions := app.Group("/positions")
+	positions.Get("/", handlers.PositionList)
+	positions.Get("/new", handlers.PositionNew)
+	positions.Post("/", handlers.PositionCreate)
+	positions.Get("/:id", handlers.PositionView)
+	positions.Get("/:id/edit", handlers.PositionEdit)
+	positions.Put("/:id", handlers.PositionUpdate)
+	positions.Delete("/:id", handlers.PositionDelete)
+
+	// Membership levels admin
+	levels := app.Group("/membership-levels")
+	levels.Get("/", handlers.LevelList)
+	levels.Get("/new", handlers.LevelNew)
+	levels.Post("/", handlers.LevelCreate)
+	levels.Get("/:id", handlers.LevelView)
+	levels.Get("/:id/edit", handlers.LevelEdit)
+	levels.Put("/:id", handlers.LevelUpdate)
+	levels.Delete("/:id", handlers.LevelDelete)
+
 	// API endpoints for AJAX operations
 	api := app.Group("/api")
 
@@ -281,4 +314,21 @@ func setupRoutes(app *fiber.App) {
 	apiInventory.Post("/discount-rules", handlers.CreateDiscountRule)
 	apiInventory.Put("/discount-rules/:id", handlers.UpdateDiscountRule)
 	apiInventory.Delete("/discount-rules/:id", handlers.DeleteDiscountRule)
+	// Warehouse utilities
+	apiInventory.Post("/warehouse/expiry", handlers.UpdateWarehouseExpiry)
+
+	// Inventory disposal endpoints
+	apiInventory.Delete("/warehouse/:id", handlers.DeleteWarehouseInventory)
+	apiInventory.Delete("/shelf/:id", handlers.DeleteShelfInventory)
+	apiInventory.Post("/dispose-all-expired", handlers.DisposeAllExpired)
+
+	// Warehouse management
+	warehouses := app.Group("/warehouses")
+	warehouses.Get("/", handlers.WarehouseList)
+	warehouses.Get("/new", handlers.WarehouseNew)
+	warehouses.Post("/", handlers.WarehouseCreate)
+	warehouses.Get("/:id", handlers.WarehouseView)
+	warehouses.Get("/:id/edit", handlers.WarehouseEdit)
+	warehouses.Put("/:id", handlers.WarehouseUpdate)
+	warehouses.Delete("/:id", handlers.WarehouseDelete)
 }

@@ -1,0 +1,29 @@
+{{define "pages/membership_levels/form"}}
+<div class="container">
+  <h1>{{ if .IsNew }}Thêm cấp thành viên{{ else }}Sửa cấp thành viên{{ end }}</h1>
+  <form method="post" action="{{ if .IsNew }}/membership-levels{{ else }}/membership-levels/{{ .Level.LevelID }}{{ end }}">
+    {{ if not .IsNew }}<input type="hidden" name="_method" value="PUT">{{ end }}
+    <div class="form-group">
+      <label>Tên cấp</label>
+      <input class="form-control" name="level_name" value="{{ if .Level }}{{ .Level.LevelName }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Tối thiểu (VND)</label>
+      <input class="form-control" name="min_spending" type="number" step="0.01" min="0" value="{{ if .Level }}{{ .Level.MinSpending }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Giảm (%)</label>
+      <input class="form-control" name="discount_percentage" type="number" step="0.01" min="0" max="100" value="{{ if .Level }}{{ .Level.DiscountPercentage }}{{ end }}">
+    </div>
+    <div class="form-group">
+      <label>Hệ số điểm</label>
+      <input class="form-control" name="points_multiplier" type="number" step="0.01" min="0" value="{{ if .Level }}{{ .Level.PointsMultiplier }}{{ end }}">
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn btn-primary" type="submit">Lưu</button>
+      <a class="btn" href="/membership-levels">Hủy</a>
+    </div>
+  </form>
+</div>
+{{end}}
+

@@ -16,6 +16,11 @@
             border-color: #007bff;
             background-color: #e7f3ff;
         }
+        .product-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         .expiry-warning {
             background-color: #fff3cd;
             border: 1px solid #ffeaa7;
@@ -118,7 +123,12 @@
                                     <!-- Product List -->
                                     <div id="productList" style="max-height: 400px; overflow-y: auto;">
                                         {{range .Products}}
-                                        <div class="product-card" data-product-id="{{.ProductID}}" onclick="selectProduct(this)">
+                                        <div class="product-card {{if .ExpiryDate}}{{if lt .DaysToExpiry 0}}disabled{{end}}{{end}}"
+                                             data-product-id="{{.ProductID}}"
+                                             data-price="{{.SellingPrice}}"
+                                             data-discount="{{if .DiscountPrice}}{{.DiscountPrice}}{{end}}"
+                                             data-expired="{{if .ExpiryDate}}{{if lt .DaysToExpiry 0}}true{{else}}false{{end}}{{else}}false{{end}}"
+                                             onclick="selectProduct(this)">
                                             <div class="row">
                                                 <div class="col-md-8">
                                                     <strong>{{.ProductName}}</strong>
@@ -129,6 +139,9 @@
                                                     {{if .ExpiryDate}}
                                                     <br>
                                                     <small class="text-muted">HSD: {{.ExpiryDate.Format "02/01/2006"}}</small>
+                                                    {{if lt .DaysToExpiry 0}}
+                                                    <span class="badge bg-danger ms-2">Hết hạn</span>
+                                                    {{end}}
                                                     {{end}}
                                                 </div>
                                                 <div class="col-md-4 text-end">
@@ -153,6 +166,13 @@
                                     <h5 class="mb-0">Giỏ hàng</h5>
                                 </div>
                                 <div class="card-body">
+                                    <!-- Customer Summary on the right -->
+                                    <div id="customerSummary" class="alert alert-info" style="display: none;">
+                                        <div><strong id="cs_name"></strong></div>
+                                        <div><small id="cs_phone"></small></div>
+                                        <div><small id="cs_membership"></small></div>
+                                        <div><small id="cs_points"></small></div>
+                                    </div>
                                     <div id="cartItems">
                                         <p class="text-muted text-center">Chưa có sản phẩm nào</p>
                                     </div>
@@ -171,7 +191,7 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <label for="points_used" class="form-label">Điểm sử dụng</label>
-                                                <input type="number" class="form-control" id="points_used" name="points_used" min="0" value="0" onchange="updateTotals()">
+                                                <input type="number" class="form-control" id="points_used" name="points_used" min="0" value="0" onchange="onPointsChange()">
                                             </div>
                                         </div>
                                         <div class="mt-3">
@@ -197,6 +217,10 @@
                                         <div class="d-flex justify-content-between">
                                             <span>Điểm sử dụng:</span>
                                             <span id="pointsUsed" class="text-info">0 điểm</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Ưu đãi thành viên:</span>
+                                            <span id="membershipApplied" class="text-secondary">Không</span>
                                         </div>
                                         <hr>
                                         <div class="d-flex justify-content-between">
@@ -234,20 +258,47 @@
     <script>
         let cart = [];
         let membershipLevels = {{.MembershipLevels | json}};
+        // Normalize membershipLevels to array to avoid .find errors
+        if (!Array.isArray(membershipLevels)) {
+            try { membershipLevels = JSON.parse(membershipLevels); } catch (e) { membershipLevels = []; }
+        }
+        let currentCustomerPoints = 0;
 
         function selectProduct(element) {
+            if (element.dataset.expired === 'true') {
+                return;
+            }
             const productId = element.dataset.productId;
             const productName = element.querySelector('strong').textContent;
             const productCode = element.querySelector('.text-muted').textContent.split(' - ')[0];
-            const categoryName = element.querySelector('.text-muted').textContent.split(' - ')[1];
-            const shelfName = element.querySelectorAll('.text-muted')[1].textContent.replace('Quầy: ', '');
-            const sellingPrice = parseFloat(element.querySelector('.fw-bold').textContent.replace(/[^\d]/g, ''));
-            const discountPrice = element.querySelector('.text-danger') ? parseFloat(element.querySelector('.text-danger').textContent.replace(/[^\d]/g, '')) : null;
+            const codeAndCat = element.querySelector('.text-muted').textContent.split(' - ');
+            const categoryName = codeAndCat.length > 1 ? codeAndCat[1] : '';
+            const mutedNodes = element.querySelectorAll('.text-muted');
+            let shelfName = '';
+            if (mutedNodes.length > 1) {
+                shelfName = mutedNodes[1].textContent.replace('Quầy: ', '');
+            }
+            let sellingPrice = parseFloat(element.dataset.price || '0');
+            let discountPrice = element.dataset.discount ? parseFloat(element.dataset.discount) : null;
+            if (isNaN(sellingPrice) || sellingPrice <= 0) {
+                const priceText = element.querySelector('.fw-bold') ? element.querySelector('.fw-bold').textContent : '0';
+                sellingPrice = parseFloat(priceText.replace(/[^\d.]/g, '')) || 0;
+            }
+            if (discountPrice !== null && isNaN(discountPrice)) {
+                discountPrice = null;
+            }
             // Find the element containing "Còn:" text
-            const quantityElement = Array.from(element.querySelectorAll('.text-muted')).find(el => el.textContent.includes('Còn:'));
-            const shelfQuantity = quantityElement ? parseInt(quantityElement.textContent.replace('Còn: ', '')) : 0;
-            
-            console.log(`Debug selectProduct: quantityElement=`, quantityElement, `shelfQuantity=${shelfQuantity}`);
+            let shelfQuantity = 0;
+            try {
+                const mutes = Array.from(element.querySelectorAll('.text-muted'));
+                const qtyEl = mutes.find(function(el){ return (el.textContent || '').indexOf('Còn:') !== -1; });
+                if (qtyEl) {
+                    const qText = (qtyEl.textContent || '').replace('Còn: ', '').replace(/[^\d]/g, '');
+                    shelfQuantity = parseInt(qText) || 0;
+                }
+            } catch (e) {
+                shelfQuantity = 0;
+            }
 
             // Check if product already in cart
             const existingItem = cart.find(item => item.productId === productId);
@@ -330,7 +381,7 @@
 
             cartContainer.innerHTML = html;
             document.getElementById('submitBtn').disabled = false;
-            updateTotals();
+            try { updateTotals(); } catch (e) { console.error('updateTotals error', e); }
         }
 
         function updateQuantity(index, quantity) {
@@ -376,22 +427,47 @@
             
             if (customerSelect.value) {
                 const option = customerSelect.options[customerSelect.selectedIndex];
-                const membershipId = option.dataset.membership;
-                const points = parseInt(option.dataset.points);
+                const membershipId = option.dataset.membership || '';
+                const points = parseInt(option.dataset.points) || 0;
+                currentCustomerPoints = isNaN(points) ? 0 : points;
                 
-                const membership = membershipLevels.find(ml => ml.level_id == membershipId);
-                if (membership) {
-                    customerInfo.innerHTML = `
-                        <strong>Thành viên:</strong> ${membership.level_name}<br>
-                        <strong>Điểm hiện tại:</strong> ${points} điểm<br>
-                        <strong>Giảm giá:</strong> ${membership.discount_percentage}%<br>
-                        <strong>Tích điểm:</strong> ${membership.points_multiplier} điểm/1000 VND
-                    `;
-                    customerDetails.style.display = 'block';
-                }
+                const membership = Array.isArray(membershipLevels) ? membershipLevels.find(function(ml){ return ml && (ml.level_id + '') === (membershipId + ''); }) : null;
+                const levelName = membership ? membership.level_name : 'Không';
+                const memberDiscountPct = membership ? membership.discount_percentage : 0;
+                const memberPointsMul = membership ? membership.points_multiplier : 0;
+                customerInfo.innerHTML = `
+                    <strong>Thành viên:</strong> ${levelName}<br>
+                    <strong>Điểm hiện tại:</strong> ${currentCustomerPoints} điểm<br>
+                    <strong>Giảm giá thành viên:</strong> ${memberDiscountPct}%
+                `;
+                customerDetails.style.display = 'block';
+
+                // Update right-side summary
+                document.getElementById('cs_name').textContent = option.textContent.trim();
+                document.getElementById('cs_phone').textContent = option.dataset.phone ? `SĐT: ${option.dataset.phone}` : '';
+                document.getElementById('cs_membership').textContent = membership ? `Thành viên: ${membership.level_name} (Giảm ${membership.discount_percentage}%)` : 'Thành viên: Không';
+                document.getElementById('cs_points').textContent = `Điểm hiện có: ${currentCustomerPoints}`;
+                document.getElementById('customerSummary').style.display = 'block';
             } else {
                 customerDetails.style.display = 'none';
+                currentCustomerPoints = 0;
+                document.getElementById('customerSummary').style.display = 'none';
             }
+            // Cap input max to available points
+            const pointsInput = document.getElementById('points_used');
+            pointsInput.max = currentCustomerPoints;
+            if (parseInt(pointsInput.value || '0') > currentCustomerPoints) {
+                pointsInput.value = currentCustomerPoints;
+            }
+            updateTotals();
+        }
+
+        function onPointsChange() {
+            const input = document.getElementById('points_used');
+            let val = parseInt(input.value || '0');
+            if (val < 0) val = 0;
+            if (currentCustomerPoints && val > currentCustomerPoints) val = currentCustomerPoints;
+            input.value = val;
             updateTotals();
         }
 
@@ -407,23 +483,27 @@
             });
 
             const pointsUsed = parseInt(document.getElementById('points_used').value) || 0;
-            const pointsDiscount = pointsUsed * 1000; // 1 điểm = 1000 VND
+            const pointsDiscount = pointsUsed / 1000; // 1000 điểm = 1 VND
             
             const netSubtotal = subtotal - totalDiscount - pointsDiscount;
-            const taxAmount = netSubtotal * 0.1; // 10% VAT
-            const totalAmount = netSubtotal + taxAmount;
+            const taxAmount = Math.max(netSubtotal, 0) * 0.1; // 10% VAT, clamp at 0
+            const totalAmount = Math.max(netSubtotal, 0) + taxAmount;
 
-            // Calculate points earned
+            // Membership applied label
             const customerSelect = document.getElementById('customer_id');
-            let pointsEarned = 0;
+            let membershipLabel = 'Không';
             if (customerSelect.value) {
                 const option = customerSelect.options[customerSelect.selectedIndex];
-                const membershipId = option.dataset.membership;
-                const membership = membershipLevels.find(ml => ml.level_id == membershipId);
-                if (membership) {
-                    pointsEarned = Math.floor(totalAmount * membership.points_multiplier / 1000);
+                const membershipId = option.dataset.membership || '';
+                const membership = Array.isArray(membershipLevels) ? membershipLevels.find(function(ml){ return ml && (ml.level_id + '') === (membershipId + ''); }) : null;
+                if (membership && membership.discount_percentage > 0) {
+                    membershipLabel = `Có (${membership.discount_percentage}%)`;
                 }
             }
+            document.getElementById('membershipApplied').textContent = membershipLabel;
+
+            // Calculate points earned
+            let pointsEarned = Math.floor(totalAmount * 0.10); // 10% số tiền đơn hàng
 
             document.getElementById('subtotal').textContent = subtotal.toLocaleString() + ' VND';
             document.getElementById('discountAmount').textContent = totalDiscount.toLocaleString() + ' VND';

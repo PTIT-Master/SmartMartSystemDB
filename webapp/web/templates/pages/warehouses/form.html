@@ -1,0 +1,35 @@
+{{define "pages/warehouses/form"}}
+<div class="container">
+  <h1>{{ if .IsNew }}Thêm kho{{ else }}Sửa kho{{ end }}</h1>
+  <form method="post" action="{{ if .IsNew }}/warehouses{{ else }}/warehouses/{{ .Warehouse.WarehouseID }}{{ end }}">
+    {{ if not .IsNew }}
+      <input type="hidden" name="_method" value="PUT">
+    {{ end }}
+    <div class="form-group">
+      <label>Mã kho</label>
+      <input class="form-control" name="warehouse_code" value="{{ if .Warehouse }}{{ .Warehouse.WarehouseCode }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Tên kho</label>
+      <input class="form-control" name="warehouse_name" value="{{ if .Warehouse }}{{ .Warehouse.WarehouseName }}{{ end }}" required>
+    </div>
+    <div class="form-group">
+      <label>Vị trí</label>
+      <input class="form-control" name="location" value="{{ if .Warehouse }}{{ .Warehouse.Location }}{{ end }}">
+    </div>
+    <div class="form-group">
+      <label>Quản lý</label>
+      <input class="form-control" name="manager_name" value="{{ if .Warehouse }}{{ .Warehouse.ManagerName }}{{ end }}">
+    </div>
+    <div class="form-group">
+      <label>Sức chứa</label>
+      <input class="form-control" name="capacity" type="number" min="0" value="{{ if .Warehouse }}{{ .Warehouse.Capacity }}{{ end }}">
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn btn-primary" type="submit">Lưu</button>
+      <a class="btn" href="/warehouses">Hủy</a>
+    </div>
+  </form>
+</div>
+{{end}}
+

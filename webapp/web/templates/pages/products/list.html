@@ -8,6 +8,16 @@
             </div>
         </div>
     </div>
+    <div class="card-body">
+        <form method="get" action="/products" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+            <label for="sort">Sắp xếp:</label>
+            <select id="sort" name="sort" class="form-control" onchange="this.form.submit()">
+                <option value="name" {{if eq .SortBy "name"}}selected{{end}}>Tên (A→Z)</option>
+                <option value="total_asc" {{if eq .SortBy "total_asc"}}selected{{end}}>Tổng tồn (tăng dần)</option>
+                <option value="total_desc" {{if eq .SortBy "total_desc"}}selected{{end}}>Tổng tồn (giảm dần)</option>
+            </select>
+        </form>
+    </div>
     
     <table>
         <thead>

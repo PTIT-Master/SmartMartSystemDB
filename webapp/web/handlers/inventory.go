@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -354,7 +355,7 @@ func ShelfInventory(c *fiber.Ctx) error {
 	shelfID := c.Query("shelf", "")
 	categoryID := c.Query("category", "")
 	searchTerm := c.Query("search", "")
-	sortBy := c.Query("sort", "quantity") // quantity, expiry, sales
+	sortBy := c.Query("sort", "quantity") // quantity, expiry, sales (today)
 
 	// Base query
 	query := `
@@ -391,12 +392,20 @@ func ShelfInventory(c *fiber.Ctx) error {
 				WHEN si.expiry_date IS NOT NULL THEN 
 					si.expiry_date - CURRENT_DATE
 				ELSE 999999
-			END as days_until_expiry
-		FROM supermarket.shelf_batch_inventory si
+            END as days_until_expiry,
+            COALESCE(tod.sold_today, 0) as sold_today
+        FROM supermarket.shelf_batch_inventory si
 		JOIN supermarket.display_shelves ds ON si.shelf_id = ds.shelf_id
 		JOIN supermarket.products p ON si.product_id = p.product_id
 		JOIN supermarket.product_categories pc ON p.category_id = pc.category_id
-		LEFT JOIN supermarket.shelf_layout sl ON si.shelf_id = sl.shelf_id AND si.product_id = sl.product_id
+        LEFT JOIN supermarket.shelf_layout sl ON si.shelf_id = sl.shelf_id AND si.product_id = sl.product_id
+        LEFT JOIN (
+            SELECT sid.product_id, SUM(sid.quantity) as sold_today
+            FROM supermarket.sales_invoice_details sid
+            JOIN supermarket.sales_invoices si2 ON si2.invoice_id = sid.invoice_id
+            WHERE DATE(si2.invoice_date) = CURRENT_DATE
+            GROUP BY sid.product_id
+        ) tod ON tod.product_id = si.product_id
 		WHERE 1=1
 	`
 
@@ -427,8 +436,8 @@ func ShelfInventory(c *fiber.Ctx) error {
 	case "expiry":
 		query += " ORDER BY days_until_expiry ASC, si.quantity DESC"
 	case "sales":
-		// TODO: Join with sales data
-		query += " ORDER BY si.quantity ASC"
+		// Sort by sold today desc, then low quantity
+		query += " ORDER BY sold_today DESC, si.quantity ASC"
 	case "name":
 		query += " ORDER BY p.product_name ASC"
 	default:
@@ -934,6 +943,66 @@ func ApplyDiscountRules(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateWarehouseExpiry allows staff to set expiry_date for a warehouse batch
+func UpdateWarehouseExpiry(c *fiber.Ctx) error {
+	db := database.GetDB()
+
+	type reqBody struct {
+		InventoryID uint   `json:"inventory_id"`
+		ExpiryDate  string `json:"expiry_date"` // YYYY-MM-DD
+	}
+
+	var body reqBody
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Dữ liệu không hợp lệ: " + err.Error(),
+		})
+	}
+
+	if body.InventoryID == 0 || body.ExpiryDate == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Thiếu inventory_id hoặc expiry_date",
+		})
+	}
+
+	// Parse date
+	expiry, err := time.Parse("2006-01-02", body.ExpiryDate)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Định dạng ngày không hợp lệ (YYYY-MM-DD)",
+		})
+	}
+
+	// Update with validation: expiry_date should be after import_date
+	res := db.Exec(`
+        UPDATE supermarket.warehouse_inventory
+        SET expiry_date = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE inventory_id = $2 AND (import_date IS NULL OR $1 >= import_date)
+    `, expiry, body.InventoryID)
+
+	if res.Error != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Không thể cập nhật hạn sử dụng: " + res.Error.Error(),
+		})
+	}
+
+	if res.RowsAffected == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Không cập nhật được. Kiểm tra inventory_id hoặc ngày nhỏ hơn ngày nhập.",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Cập nhật hạn sử dụng thành công",
+	})
+}
+
 // StockTransferHistory displays all stock transfer history
 func StockTransferHistory(c *fiber.Ctx) error {
 	db := database.GetDB()
@@ -1290,5 +1359,96 @@ func DeleteDiscountRule(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Xóa quy tắc giảm giá thành công",
+	})
+}
+
+// DeleteWarehouseInventory deletes a warehouse inventory batch by inventory_id
+func DeleteWarehouseInventory(c *fiber.Ctx) error {
+	db := database.GetDB()
+
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid inventory id",
+		})
+	}
+
+	// Set quantity to 0 to mark as disposed, then delete row
+	// Prefer hard delete to reflect disposal immediately in UI
+	if err := db.Exec("DELETE FROM supermarket.warehouse_inventory WHERE inventory_id = ?", id).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Không thể hủy lô hàng kho: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Đã hủy lô hàng kho",
+	})
+}
+
+// DeleteShelfInventory deletes a shelf batch inventory by shelf_batch_id
+func DeleteShelfInventory(c *fiber.Ctx) error {
+	db := database.GetDB()
+
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid shelf batch id",
+		})
+	}
+
+	if err := db.Exec("DELETE FROM supermarket.shelf_batch_inventory WHERE shelf_batch_id = ?", id).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Không thể hủy lô hàng kệ: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Đã hủy lô hàng kệ",
+	})
+}
+
+// DisposeAllExpired disposes all expired batches in both warehouse and shelf
+func DisposeAllExpired(c *fiber.Ctx) error {
+	db := database.GetDB()
+
+	tx := db.Begin()
+
+	// Delete expired warehouse batches
+	if err := tx.Exec("DELETE FROM supermarket.warehouse_inventory WHERE expiry_date < CURRENT_DATE").Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Không thể hủy các lô hàng kho hết hạn: " + err.Error(),
+		})
+	}
+
+	// Delete expired shelf batches
+	if err := tx.Exec("DELETE FROM supermarket.shelf_batch_inventory WHERE expiry_date < CURRENT_DATE").Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Không thể hủy các lô hàng kệ hết hạn: " + err.Error(),
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Không thể hoàn tất hủy hàng hết hạn: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Đã hủy tất cả lô hàng hết hạn",
 	})
 }

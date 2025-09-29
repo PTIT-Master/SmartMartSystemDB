@@ -227,17 +227,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2.3 Auto-calculate Expiry Date for Warehouse Inventory
+-- 2.3 Expiry Date Handling (disabled auto-calc to allow manual entry per batch)
 CREATE OR REPLACE FUNCTION calculate_expiry_date()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Calculate expiry date if not provided and product has shelf life
-    IF NEW.expiry_date IS NULL THEN
-        SELECT NEW.import_date + (p.shelf_life_days || ' days')::INTERVAL INTO NEW.expiry_date
-        FROM supermarket.products p
-        WHERE p.product_id = NEW.product_id AND p.shelf_life_days IS NOT NULL;
-    END IF;
-    
+    -- Requirement: New warehouse batches should have NULL expiry by default
+    -- so staff can input per batch. This function intentionally does not
+    -- auto-populate expiry_date.
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -287,8 +283,8 @@ BEGIN
         LEFT JOIN membership_levels ml ON c.membership_level_id = ml.level_id
         WHERE c.customer_id = NEW.customer_id;
         
-        -- Calculate points earned (1 point per dollar spent, multiplied by membership bonus)
-        points_earned := FLOOR(NEW.total_amount * multiplier);
+        -- Calculate points earned: 10% of net before VAT
+        points_earned := FLOOR(GREATEST(NEW.subtotal - NEW.discount_amount, 0) * 0.10);
         
         -- Update customer metrics
         UPDATE customers 
@@ -301,6 +297,55 @@ BEGIN
         NEW.points_earned := points_earned;
     END IF;
     
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- 8. PURCHASE ORDER RECEIPT → WAREHOUSE INVENTORY
+-- ============================================================================
+
+-- 8.1 Process purchase receipt: when an order is marked RECEIVED, create batches in warehouse_inventory
+CREATE OR REPLACE FUNCTION process_purchase_receipt()
+RETURNS TRIGGER AS $$
+DECLARE
+    rec RECORD;
+    v_batch_code TEXT;
+BEGIN
+    -- Only act when status transitions to RECEIVED
+    IF TG_OP = 'UPDATE' AND NEW.status = 'RECEIVED' AND (OLD.status IS DISTINCT FROM 'RECEIVED') THEN
+        FOR rec IN
+            SELECT pod.detail_id, pod.product_id, pod.quantity, pod.unit_price
+            FROM supermarket.purchase_order_details pod
+            WHERE pod.order_id = NEW.order_id
+        LOOP
+            -- Generate a deterministic batch code based on order no and detail id
+            v_batch_code := NEW.order_no || '-' || rec.detail_id::TEXT;
+
+            INSERT INTO supermarket.warehouse_inventory (
+                warehouse_id,
+                product_id,
+                batch_code,
+                quantity,
+                import_date,
+                expiry_date,
+                import_price,
+                created_at,
+                updated_at
+            ) VALUES (
+                1, -- default warehouse
+                rec.product_id,
+                v_batch_code,
+                rec.quantity,
+                CURRENT_DATE,
+                NULL, -- expiry to be entered by staff later
+                rec.unit_price,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            );
+        END LOOP;
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -359,11 +404,11 @@ BEGIN
     FROM sales_invoice_details 
     WHERE invoice_id = NEW.invoice_id;
     
-    -- Calculate tax (assuming 10% VAT, adjust as needed)
-    invoice_tax := (invoice_subtotal - invoice_discount) * 0.10;
+    -- Calculate tax (10% VAT) on net before tax
+    invoice_tax := GREATEST(invoice_subtotal - invoice_discount, 0) * 0.10;
     
     -- Calculate final total
-    invoice_total := invoice_subtotal - invoice_discount + invoice_tax;
+    invoice_total := GREATEST(invoice_subtotal - invoice_discount, 0) + invoice_tax;
     
     -- Update the invoice
     UPDATE sales_invoices 

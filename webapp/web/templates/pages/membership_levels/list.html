@@ -1,0 +1,33 @@
+{{define "pages/membership_levels/list"}}
+<div class="container">
+  <h1>{{ .Title }}</h1>
+  <div style="margin:12px 0;">
+    <a href="/membership-levels/new" class="btn btn-primary">Thêm cấp thành viên</a>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Tên cấp</th>
+        <th>Tối thiểu (VND)</th>
+        <th>Giảm (%)</th>
+        <th>Điểm x</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Levels}}
+      <tr>
+        <td><a href="/membership-levels/{{.LevelID}}">{{.LevelName}}</a></td>
+        <td>{{.MinSpending}}</td>
+        <td>{{.DiscountPercentage}}</td>
+        <td>{{.PointsMultiplier}}</td>
+        <td><a href="/membership-levels/{{.LevelID}}/edit">Sửa</a></td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">Chưa có cấp thành viên.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
