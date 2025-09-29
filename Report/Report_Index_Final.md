@@ -242,3 +242,50 @@
   - Analytics và BI dashboard
 
 ### 9.3. **Kết luận**
+
+---
+
+## **PHẦN X: HƯỚNG DẪN CÀI ĐẶT VÀ TRIỂN KHAI**
+
+### 10.1. **Quá trình cài đặt cơ sở dữ liệu**
+
+#### 10.1.1. **Yêu cầu hệ thống**
+- PostgreSQL 12+ hoặc tương đương
+- Go 1.19+ (cho ứng dụng web)
+- Minimum RAM: 4GB
+- Disk space: 10GB+
+
+#### 10.1.2. **Các bước cài đặt**
+- 10.1.2.1. Cài đặt PostgreSQL và tạo database
+- 10.1.2.2. Cấu hình environment variables
+- 10.1.2.3. Chạy migration scripts
+- 10.1.2.4. Tạo triggers và stored procedures
+- 10.1.2.5. Khởi tạo dữ liệu mẫu
+- 10.1.2.6. Kiểm tra kết nối và hoạt động
+
+#### 10.1.3. **Cấu hình database**
+- 10.1.3.1. Database connection settings
+- 10.1.3.2. User permissions và security
+- 10.1.3.3. Backup và maintenance procedures
+
+### 10.2. **Minh chứng về dữ liệu đã được nạp trong CSDL**
+
+#### 10.2.1. **Screenshots và bằng chứng dữ liệu**
+- 10.2.1.1. Kiểm tra số lượng records trong các bảng chính
+- 10.2.1.2. Xác minh dữ liệu mẫu đã được nhập đúng
+- 10.2.1.3. Kiểm tra tính toàn vẹn dữ liệu (foreign keys)
+
+#### 10.2.2. **Test cases thực thi**
+- 10.2.2.1. Test queries cơ bản trả về dữ liệu
+- 10.2.2.2. Test triggers hoạt động với dữ liệu thực
+- 10.2.2.3. Test stored procedures với input/output
+- 10.2.2.4. Test views trả về kết quả đúng
+
+#### 10.2.3. **Báo cáo thống kê dữ liệu**
+- 10.2.3.1. Tổng số records theo bảng
+- 10.2.3.2. Thống kê dữ liệu theo thời gian
+- 10.2.3.3. Kiểm tra performance với dữ liệu thực tế
+
+---
+
+## **PHẦN XI: KẾT LUẬN**
