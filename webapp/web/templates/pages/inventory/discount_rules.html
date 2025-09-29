@@ -72,7 +72,7 @@
                     </thead>
                     <tbody>
                         {{ range .Rules }}
-                        <tr>
+                        <tr data-category-id="{{ .CategoryID }}">
                             <td>{{ .RuleID }}</td>
                             <td>
                                 <span class="badge badge-secondary">{{ .CategoryName }}</span>
@@ -456,6 +456,11 @@ function editRule(ruleId) {
             document.getElementById('edit_discount_percentage').value = cells[3].querySelector('.badge').textContent.replace('%', '');
             document.getElementById('edit_rule_name').value = cells[4].textContent.trim();
             document.getElementById('edit_is_active').checked = cells[5].querySelector('.badge').textContent.trim() === 'Hoạt động';
+            // Set selected category from row data attribute
+            const categoryId = row.getAttribute('data-category-id');
+            if (categoryId) {
+                document.getElementById('edit_category_id').value = categoryId;
+            }
             
             // Show modal
             document.getElementById('editRuleModal').style.display = 'block';

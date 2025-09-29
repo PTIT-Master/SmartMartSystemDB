@@ -57,7 +57,8 @@ func Load() (*Config, error) {
 
 // GetDSN returns the database connection string
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+	// Include search_path to ensure all pooled connections use the supermarket schema
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s search_path=supermarket",
 		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
 }
 

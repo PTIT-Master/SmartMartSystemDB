@@ -18,5 +18,5 @@ type DiscountRule struct {
 
 // TableName specifies the table name for DiscountRule
 func (DiscountRule) TableName() string {
-	return "discount_rules"
+	return "supermarket.discount_rules"
 }
