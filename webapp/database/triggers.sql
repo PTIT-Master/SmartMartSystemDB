@@ -73,7 +73,7 @@ BEGIN
     
     -- Get product category
     SELECT p.category_id INTO product_category_id
-    FROM products p
+    FROM supermarket.products p
     WHERE p.product_id = NEW.product_id;
     
     IF shelf_category_id != product_category_id THEN
@@ -97,7 +97,7 @@ DECLARE
     v_shelf_code TEXT;
 BEGIN
     -- Lấy product_code từ bảng products
-    SELECT product_code INTO v_product_code FROM products WHERE product_id = NEW.product_id;
+    SELECT product_code INTO v_product_code FROM supermarket.products WHERE product_id = NEW.product_id;
 
     -- Lấy shelf_code từ bảng display_shelves
     SELECT shelf_code INTO v_shelf_code FROM display_shelves WHERE shelf_id = NEW.to_shelf_id;
@@ -144,18 +144,44 @@ $$ LANGUAGE plpgsql;
 -- 2.1 Auto-update Warehouse Inventory on Stock Transfer
 CREATE OR REPLACE FUNCTION process_stock_transfer()
 RETURNS TRIGGER AS $$
+DECLARE
+    remaining_qty INTEGER := NEW.quantity;
+    batch_qty INTEGER;
+    warehouse_rec RECORD;
+    updated_qty INTEGER;
 BEGIN
-    -- Deduct from warehouse inventory
-    UPDATE warehouse_inventory 
-    SET quantity = quantity - NEW.quantity,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE warehouse_id = NEW.from_warehouse_id 
-      AND product_id = NEW.product_id 
-      AND quantity >= NEW.quantity;
+    -- Use FIFO: deduct from oldest batches first
+    FOR warehouse_rec IN
+        SELECT inventory_id, quantity 
+        FROM warehouse_inventory 
+        WHERE warehouse_id = NEW.from_warehouse_id 
+          AND product_id = NEW.product_id 
+          AND quantity > 0
+        ORDER BY import_date ASC, inventory_id ASC
+    LOOP
+        IF remaining_qty <= 0 THEN
+            EXIT;
+        END IF;
+        
+        batch_qty := LEAST(warehouse_rec.quantity, remaining_qty);
+        updated_qty := warehouse_rec.quantity - batch_qty;
+        
+        -- Ensure quantity never goes negative
+        IF updated_qty < 0 THEN
+            updated_qty := 0;
+        END IF;
+        
+        UPDATE warehouse_inventory 
+        SET quantity = updated_qty,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE inventory_id = warehouse_rec.inventory_id;
+        
+        remaining_qty := remaining_qty - batch_qty;
+    END LOOP;
     
-    -- Check if update was successful
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Failed to deduct stock from warehouse. Check stock availability.';
+    -- Check if we successfully deducted all required quantity
+    IF remaining_qty > 0 THEN
+        RAISE EXCEPTION 'Failed to deduct % units from warehouse. Only % units were available.', NEW.quantity, NEW.quantity - remaining_qty;
     END IF;
     
     -- Update or insert shelf inventory
@@ -182,7 +208,7 @@ BEGIN
     SELECT si.current_quantity INTO available_qty
     FROM shelf_inventory si
     INNER JOIN sales_invoices inv ON inv.invoice_id = NEW.invoice_id
-    INNER JOIN products p ON p.product_id = NEW.product_id
+    INNER JOIN supermarket.products p ON p.product_id = NEW.product_id
     WHERE si.product_id = NEW.product_id;
     
     IF NOT FOUND OR available_qty < NEW.quantity THEN
@@ -208,7 +234,7 @@ BEGIN
     -- Calculate expiry date if not provided and product has shelf life
     IF NEW.expiry_date IS NULL THEN
         SELECT NEW.import_date + (p.shelf_life_days || ' days')::INTERVAL INTO NEW.expiry_date
-        FROM products p
+        FROM supermarket.products p
         WHERE p.product_id = NEW.product_id AND p.shelf_life_days IS NOT NULL;
     END IF;
     
@@ -227,7 +253,7 @@ BEGIN
     -- Get product threshold and name
     SELECT p.low_stock_threshold, p.product_name 
     INTO threshold, product_name
-    FROM products p 
+    FROM supermarket.products p 
     WHERE p.product_id = NEW.product_id;
     
     -- Check if stock is now below threshold
@@ -432,13 +458,13 @@ BEGIN
         
         -- Get the product's current selling price
         SELECT selling_price INTO original_price
-        FROM products 
+        FROM supermarket.products 
         WHERE product_id = NEW.product_id;
         
         -- Find applicable discount rule
         SELECT dr.discount_percentage INTO discount_rule
         FROM discount_rules dr
-        INNER JOIN products p ON p.category_id = dr.category_id
+        INNER JOIN supermarket.products p ON p.category_id = dr.category_id
         WHERE p.product_id = NEW.product_id
           AND dr.days_before_expiry >= days_until_expiry
           AND dr.is_active = true
@@ -451,7 +477,7 @@ BEGIN
             
             -- Get import price for validation
             SELECT import_price INTO import_price_val
-            FROM products 
+            FROM supermarket.products 
             WHERE product_id = NEW.product_id;
             
             -- Ensure discounted price is still higher than import price
@@ -522,7 +548,7 @@ DECLARE
 BEGIN
     -- Get product name
     SELECT p.product_name INTO product_name
-    FROM products p WHERE p.product_id = NEW.product_id;
+    FROM supermarket.products p WHERE p.product_id = NEW.product_id;
     
     -- Get warehouse name
     SELECT w.warehouse_name INTO warehouse_name
@@ -576,13 +602,13 @@ DECLARE
 BEGIN
     -- Only log if stock just went below threshold
     IF NEW.current_quantity <= (
-        SELECT low_stock_threshold FROM products WHERE product_id = NEW.product_id
+        SELECT low_stock_threshold FROM supermarket.products WHERE product_id = NEW.product_id
     ) AND (OLD IS NULL OR OLD.current_quantity > (
-        SELECT low_stock_threshold FROM products WHERE product_id = NEW.product_id
+        SELECT low_stock_threshold FROM supermarket.products WHERE product_id = NEW.product_id
     )) THEN
         
         SELECT p.product_name INTO product_name
-        FROM products p WHERE p.product_id = NEW.product_id;
+        FROM supermarket.products p WHERE p.product_id = NEW.product_id;
         
         activity_desc := format('Cảnh báo hết hàng: %s - Số lượng hiện tại: %s', 
                                product_name, NEW.current_quantity);
@@ -608,7 +634,7 @@ BEGIN
         days_remaining := NEW.expiry_date - CURRENT_DATE;
         
         SELECT p.product_name INTO product_name
-        FROM products p WHERE p.product_id = NEW.product_id;
+        FROM supermarket.products p WHERE p.product_id = NEW.product_id;
         
         activity_desc := format('Cảnh báo hết hạn: %s - Còn lại %s ngày (Hạn: %s)', 
                                product_name, days_remaining, NEW.expiry_date);

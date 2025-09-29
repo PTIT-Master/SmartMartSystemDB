@@ -1,0 +1,277 @@
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        {{.Title}} - {{.Order.OrderNo}}
+                    </h3>
+                    <div class="card-tools">
+                        <a href="/purchase-orders" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-arrow-left mr-1"></i>
+                            Quay lại
+                        </a>
+                        <a href="/purchase-orders/{{.Order.OrderID}}/edit" class="btn btn-sm btn-warning">
+                            <i class="fas fa-edit mr-1"></i>
+                            Chỉnh sửa
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Order Information -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">Thông tin đơn hàng</h5>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Mã đơn hàng:</strong></td>
+                                            <td>{{.Order.OrderNo}}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Nhà cung cấp:</strong></td>
+                                            <td>
+                                                {{if .Order.Supplier}}
+                                                {{.Order.Supplier.SupplierName}}
+                                                {{else}}
+                                                <span class="text-muted">N/A</span>
+                                                {{end}}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Nhân viên đặt hàng:</strong></td>
+                                            <td>
+                                                {{if .Order.Employee}}
+                                                {{.Order.Employee.FullName}} ({{.Order.Employee.EmployeeCode}})
+                                                {{else}}
+                                                <span class="text-muted">N/A</span>
+                                                {{end}}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Ngày đặt hàng:</strong></td>
+                                            <td>{{formatDate .Order.OrderDate}}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Ngày giao hàng:</strong></td>
+                                            <td>
+                                                {{if .Order.DeliveryDate}}
+                                                {{formatDate .Order.DeliveryDate}}
+                                                {{else}}
+                                                <span class="text-muted">Chưa xác định</span>
+                                                {{end}}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Trạng thái:</strong></td>
+                                            <td>
+                                                {{if eq .Order.Status "PENDING"}}
+                                                <span class="badge badge-warning">Chờ duyệt</span>
+                                                {{else if eq .Order.Status "APPROVED"}}
+                                                <span class="badge badge-info">Đã duyệt</span>
+                                                {{else if eq .Order.Status "RECEIVED"}}
+                                                <span class="badge badge-success">Đã nhận</span>
+                                                {{else if eq .Order.Status "CANCELLED"}}
+                                                <span class="badge badge-danger">Đã hủy</span>
+                                                {{else}}
+                                                <span class="badge badge-secondary">{{.Order.Status}}</span>
+                                                {{end}}
+                                            </td>
+                                        </tr>
+                                        {{if .Order.Notes}}
+                                        <tr>
+                                            <td><strong>Ghi chú:</strong></td>
+                                            <td>{{.Order.Notes}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Order Summary -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">Tổng kết đơn hàng</h5>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Số sản phẩm:</strong></td>
+                                            <td>{{len .Details}} sản phẩm</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Tổng số lượng:</strong></td>
+                                            <td>
+                                                {{$totalQty := 0}}
+                                                {{range .Details}}
+                                                {{$totalQty = add $totalQty .Quantity}}
+                                                {{end}}
+                                                {{$totalQty}} đơn vị
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Tổng tiền:</strong></td>
+                                            <td>
+                                                <span class="text-success font-weight-bold h5">
+                                                    {{formatCurrency .Order.TotalAmount}}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Ngày tạo:</strong></td>
+                                            <td>{{formatDate .Order.CreatedAt}}</td>
+                                        </tr>
+                                        {{if ne .Order.UpdatedAt .Order.CreatedAt}}
+                                        <tr>
+                                            <td><strong>Cập nhật lần cuối:</strong></td>
+                                            <td>{{formatDate .Order.UpdatedAt}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Details -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">Chi tiết sản phẩm</h5>
+                                </div>
+                                <div class="card-body">
+                                    {{if .Details}}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Mã SP</th>
+                                                    <th>Tên sản phẩm</th>
+                                                    <th>Số lượng</th>
+                                                    <th>Đơn giá</th>
+                                                    <th>Đơn vị</th>
+                                                    <th>Thành tiền</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {{range .Details}}
+                                                <tr>
+                                                    <td>
+                                                        {{if .Product}}
+                                                        <a href="/products/{{.ProductID}}" class="text-decoration-none">
+                                                            {{.Product.ProductCode}}
+                                                        </a>
+                                                        {{else}}
+                                                        <span class="text-muted">N/A</span>
+                                                        {{end}}
+                                                    </td>
+                                                    <td>
+                                                        {{if .Product}}
+                                                        {{.Product.ProductName}}
+                                                        {{else}}
+                                                        <span class="text-muted">N/A</span>
+                                                        {{end}}
+                                                    </td>
+                                                    <td>{{.Quantity}}</td>
+                                                    <td>{{formatCurrency .UnitPrice}}</td>
+                                                    <td>
+                                                        {{if .Product}}
+                                                        {{.Product.Unit}}
+                                                        {{else}}
+                                                        <span class="text-muted">N/A</span>
+                                                        {{end}}
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-success font-weight-bold">
+                                                            {{formatCurrency .Subtotal}}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                                {{end}}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr class="table-success">
+                                                    <th colspan="5" class="text-right">Tổng cộng:</th>
+                                                    <th class="text-success">
+                                                        {{formatCurrency .Order.TotalAmount}}
+                                                    </th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                    {{else}}
+                                    <div class="text-center text-muted py-4">
+                                        <i class="fas fa-box-open fa-2x mb-2"></i>
+                                        <br>
+                                        Chưa có sản phẩm nào trong đơn hàng
+                                    </div>
+                                    {{end}}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Actions -->
+                    {{if eq .Order.Status "PENDING"}}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="card-title mb-0">Thao tác đơn hàng</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-success" onclick="updateOrderStatus({{.Order.OrderID}}, 'APPROVED')">
+                                            <i class="fas fa-check mr-1"></i>
+                                            Duyệt đơn hàng
+                                        </button>
+                                        <button type="button" class="btn btn-danger" onclick="updateOrderStatus({{.Order.OrderID}}, 'CANCELLED')">
+                                            <i class="fas fa-times mr-1"></i>
+                                            Hủy đơn hàng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateOrderStatus(orderId, status) {
+    const statusText = status === 'APPROVED' ? 'duyệt' : 'hủy';
+    if (confirm(`Bạn có chắc chắn muốn ${statusText} đơn hàng này không?`)) {
+        // Create a form to submit PUT request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/purchase-orders/' + orderId;
+        
+        const methodInput = document.createElement('input');
+        methodInput.type = 'hidden';
+        methodInput.name = '_method';
+        methodInput.value = 'PUT';
+        
+        const statusInput = document.createElement('input');
+        statusInput.type = 'hidden';
+        statusInput.name = 'status';
+        statusInput.value = status;
+        
+        form.appendChild(methodInput);
+        form.appendChild(statusInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>

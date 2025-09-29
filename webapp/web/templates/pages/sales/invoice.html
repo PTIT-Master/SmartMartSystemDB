@@ -1,0 +1,213 @@
+{{define "pages/sales/invoice"}}
+<style>
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .invoice-header {
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .invoice-title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .invoice-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .items-table {
+            margin-bottom: 30px;
+        }
+        .items-table th {
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+        .total-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .total-final {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #007bff;
+            border-top: 2px solid #007bff;
+            padding-top: 10px;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .invoice-container {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+            }
+        }
+</style>
+
+<div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+                    <h2>{{.Title}}</h2>
+                    <div>
+                        <button onclick="window.print()" class="btn btn-primary me-2">
+                            <i class="fas fa-print"></i> In hóa đơn
+                        </button>
+                        <a href="/sales" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Quay lại
+                        </a>
+                    </div>
+                </div>
+
+                <div class="invoice-container">
+                    <!-- Invoice Header -->
+                    <div class="invoice-header">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h1 class="invoice-title">HÓA ĐƠN BÁN HÀNG</h1>
+                                <p><strong>Số hóa đơn:</strong> {{.Invoice.InvoiceNo}}</p>
+                                <p><strong>Ngày bán:</strong> {{.Invoice.InvoiceDate | formatDate}}</p>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <h4>{{.Invoice.StoreName}}</h4>
+                                <p>{{.Invoice.StoreAddress}}</p>
+                                <p>Điện thoại: {{.Invoice.StorePhone}}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer and Employee Info -->
+                    <div class="invoice-info">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Thông tin khách hàng:</h5>
+                                {{if .Invoice.CustomerName}}
+                                <p><strong>Tên:</strong> {{.Invoice.CustomerName}}</p>
+                                <p><strong>Điện thoại:</strong> {{.Invoice.CustomerPhone}}</p>
+                                {{if .Invoice.CustomerEmail}}<p><strong>Email:</strong> {{.Invoice.CustomerEmail}}</p>{{end}}
+                                {{if .Invoice.CustomerAddress}}<p><strong>Địa chỉ:</strong> {{.Invoice.CustomerAddress}}</p>{{end}}
+                                {{if .Invoice.MembershipLevel}}<p><strong>Thành viên:</strong> {{.Invoice.MembershipLevel}}</p>{{end}}
+                                {{else}}
+                                <p><em>Khách hàng lẻ</em></p>
+                                {{end}}
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Thông tin nhân viên:</h5>
+                                <p><strong>Tên:</strong> {{.Invoice.EmployeeName}}</p>
+                                <p><strong>Phương thức thanh toán:</strong> 
+                                    {{if .Invoice.PaymentMethod}}
+                                        {{if eq (printf "%s" .Invoice.PaymentMethod) "CASH"}}Tiền mặt{{end}}
+                                        {{if eq (printf "%s" .Invoice.PaymentMethod) "CARD"}}Thẻ{{end}}
+                                        {{if eq (printf "%s" .Invoice.PaymentMethod) "TRANSFER"}}Chuyển khoản{{end}}
+                                        {{if eq (printf "%s" .Invoice.PaymentMethod) "VOUCHER"}}Voucher{{end}}
+                                    {{else}}
+                                        Chưa xác định
+                                    {{end}}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <div class="items-table">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th width="5%">STT</th>
+                                    <th width="15%">Mã SP</th>
+                                    <th width="30%">Tên sản phẩm</th>
+                                    <th width="10%">Đơn vị</th>
+                                    <th width="10%">Số lượng</th>
+                                    <th width="15%">Đơn giá</th>
+                                    <th width="15%">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range $index, $item := .Items}}
+                                <tr>
+                                    <td class="text-center">{{add $index 1}}</td>
+                                    <td>{{$item.ProductCode}}</td>
+                                    <td>{{$item.ProductName}}</td>
+                                    <td class="text-center">{{$item.Unit}}</td>
+                                    <td class="text-center">{{$item.Quantity}}</td>
+                                    <td class="text-end">{{$item.UnitPrice | formatCurrency}}</td>
+                                    <td class="text-end">{{$item.Subtotal | formatCurrency}}</td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Totals -->
+                    <div class="total-section">
+                        <div class="total-row">
+                            <span>Tạm tính:</span>
+                            <span>{{.Invoice.Subtotal | formatCurrency}}</span>
+                        </div>
+                        {{if gt .Invoice.DiscountAmount 0.0}}
+                        <div class="total-row">
+                            <span>Giảm giá:</span>
+                            <span class="text-danger">-{{.Invoice.DiscountAmount | formatCurrency}}</span>
+                        </div>
+                        {{end}}
+                        {{if gt .Invoice.TaxAmount 0.0}}
+                        <div class="total-row">
+                            <span>Thuế VAT (10%):</span>
+                            <span>{{.Invoice.TaxAmount | formatCurrency}}</span>
+                        </div>
+                        {{end}}
+                        {{if gt .Invoice.PointsUsed 0}}
+                        <div class="total-row">
+                            <span>Điểm sử dụng:</span>
+                            <span class="text-info">-{{.Invoice.PointsUsed}} điểm</span>
+                        </div>
+                        {{end}}
+                        <div class="total-row total-final">
+                            <span>TỔNG CỘNG:</span>
+                            <span>{{.Invoice.TotalAmount | formatCurrency}}</span>
+                        </div>
+                        {{if gt .Invoice.PointsEarned 0}}
+                        <div class="total-row mt-2">
+                            <span class="text-success">Điểm tích lũy:</span>
+                            <span class="text-success">+{{.Invoice.PointsEarned}} điểm</span>
+                        </div>
+                        {{end}}
+                    </div>
+
+                    <!-- Notes -->
+                    {{if .Invoice.Notes}}
+                    <div class="mt-4">
+                        <h5>Ghi chú:</h5>
+                        <p>{{.Invoice.Notes}}</p>
+                    </div>
+                    {{end}}
+
+                    <!-- Footer -->
+                    <div class="mt-5 text-center">
+                        <p><em>Cảm ơn quý khách đã mua hàng!</em></p>
+                        <p><small>Hóa đơn được tạo tự động bởi hệ thống quản lý siêu thị</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+{{end}}

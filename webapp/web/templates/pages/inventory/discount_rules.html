@@ -1,0 +1,525 @@
+{{define "pages/inventory/discount_rules"}}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header">
+        <h1>{{.Title}}</h1>
+        <div class="header-actions">
+            <button type="button" class="btn btn-primary" onclick="showAddModal()">
+                <i class="fas fa-plus"></i> Thêm quy tắc mới
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary">
+                <i class="fas fa-percentage"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ len .Rules }}</div>
+                <div class="stat-label">Tổng quy tắc</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-success">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ .ActiveCount }}</div>
+                <div class="stat-label">Đang hoạt động</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-warning">
+                <i class="fas fa-pause-circle"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ .InactiveCount }}</div>
+                <div class="stat-label">Tạm dừng</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-info">
+                <i class="fas fa-tags"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ len .Categories }}</div>
+                <div class="stat-label">Danh mục</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rules Table -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Danh sách quy tắc giảm giá</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Danh mục</th>
+                            <th>Số ngày trước hết hạn</th>
+                            <th>Phần trăm giảm giá</th>
+                            <th>Tên quy tắc</th>
+                            <th>Trạng thái</th>
+                            <th>Ngày tạo</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .Rules }}
+                        <tr>
+                            <td>{{ .RuleID }}</td>
+                            <td>
+                                <span class="badge badge-secondary">{{ .CategoryName }}</span>
+                            </td>
+                            <td>
+                                <span class="badge badge-info">{{ .DaysBeforeExpiry }} ngày</span>
+                            </td>
+                            <td>
+                                <span class="badge badge-danger">{{ .DiscountPercentage }}%</span>
+                            </td>
+                            <td>
+                                {{ if .RuleName }}
+                                    {{ .RuleName }}
+                                {{ else }}
+                                    <em class="text-muted">Không có tên</em>
+                                {{ end }}
+                            </td>
+                            <td>
+                                {{ if .IsActive }}
+                                    <span class="badge badge-success">Hoạt động</span>
+                                {{ else }}
+                                    <span class="badge badge-secondary">Tạm dừng</span>
+                                {{ end }}
+                            </td>
+                            <td>{{ .CreatedAt.Format "02/01/2006 15:04" }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="editRule({{ .RuleID }})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRule({{ .RuleID }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Rule Modal -->
+    <div id="addRuleModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Thêm quy tắc giảm giá mới</h3>
+                <span class="close" onclick="hideAddModal()">&times;</span>
+            </div>
+            <form id="addRuleForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="category_id">Danh mục sản phẩm <span class="text-danger">*</span></label>
+                        <select id="category_id" name="category_id" required>
+                            <option value="">Chọn danh mục</option>
+                            {{ range .Categories }}
+                            <option value="{{ .CategoryID }}">{{ .CategoryName }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="days_before_expiry">Số ngày trước hết hạn <span class="text-danger">*</span></label>
+                        <input type="number" id="days_before_expiry" name="days_before_expiry" min="1" required>
+                        <small class="form-text">Số ngày trước khi sản phẩm hết hạn để áp dụng giảm giá</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="discount_percentage">Phần trăm giảm giá <span class="text-danger">*</span></label>
+                        <input type="number" id="discount_percentage" name="discount_percentage" min="0" max="100" step="0.01" required>
+                        <small class="form-text">Phần trăm giảm giá từ 0 đến 100</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="rule_name">Tên quy tắc</label>
+                        <input type="text" id="rule_name" name="rule_name" placeholder="Ví dụ: Thực phẩm đồ khô - giảm 50% khi hạn dưới 5 ngày">
+                        <small class="form-text">Tên mô tả cho quy tắc này (tùy chọn)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="is_active" name="is_active" checked>
+                            Kích hoạt quy tắc ngay
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideAddModal()">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Thêm quy tắc</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Rule Modal -->
+    <div id="editRuleModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Chỉnh sửa quy tắc giảm giá</h3>
+                <span class="close" onclick="hideEditModal()">&times;</span>
+            </div>
+            <form id="editRuleForm">
+                <div class="modal-body">
+                    <input type="hidden" id="edit_rule_id" name="rule_id">
+                    <div class="form-group">
+                        <label for="edit_category_id">Danh mục sản phẩm <span class="text-danger">*</span></label>
+                        <select id="edit_category_id" name="category_id" required>
+                            {{ range .Categories }}
+                            <option value="{{ .CategoryID }}">{{ .CategoryName }}</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_days_before_expiry">Số ngày trước hết hạn <span class="text-danger">*</span></label>
+                        <input type="number" id="edit_days_before_expiry" name="days_before_expiry" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_discount_percentage">Phần trăm giảm giá <span class="text-danger">*</span></label>
+                        <input type="number" id="edit_discount_percentage" name="discount_percentage" min="0" max="100" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_rule_name">Tên quy tắc</label>
+                        <input type="text" id="edit_rule_name" name="rule_name">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="edit_is_active" name="is_active">
+                            Kích hoạt quy tắc
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideEditModal()">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Modal Styles */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 5px;
+    width: 80%;
+    max-width: 600px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 20px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.form-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Badge Styles */
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 3px;
+    color: white;
+}
+
+.badge-secondary { background-color: #6c757d; }
+.badge-info { background-color: #17a2b8; }
+.badge-danger { background-color: #dc3545; }
+.badge-success { background-color: #28a745; }
+
+/* Button Group */
+.btn-group {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.btn-outline-primary {
+    background-color: transparent;
+    border: 1px solid #007bff;
+    color: #007bff;
+}
+
+.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-outline-danger {
+    background-color: transparent;
+    border: 1px solid #dc3545;
+    color: #dc3545;
+}
+
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #3498db;
+}
+
+.page-header h1 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Responsive table */
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+</style>
+
+<script>
+// Modal functions
+function showAddModal() {
+    document.getElementById('addRuleModal').style.display = 'block';
+}
+
+function hideAddModal() {
+    document.getElementById('addRuleModal').style.display = 'none';
+    document.getElementById('addRuleForm').reset();
+}
+
+function hideEditModal() {
+    document.getElementById('editRuleModal').style.display = 'none';
+}
+
+// Add Rule Form
+document.getElementById('addRuleForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {
+        category_id: parseInt(formData.get('category_id')),
+        days_before_expiry: parseInt(formData.get('days_before_expiry')),
+        discount_percentage: parseFloat(formData.get('discount_percentage')),
+        rule_name: formData.get('rule_name') || null,
+        is_active: formData.has('is_active')
+    };
+
+    try {
+        const response = await fetch('/api/inventory/discount-rules', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('success', result.message);
+            hideAddModal();
+            location.reload();
+        } else {
+            showAlert('error', result.message);
+        }
+    } catch (error) {
+        showAlert('error', 'Có lỗi xảy ra: ' + error.message);
+    }
+});
+
+// Edit Rule Form
+document.getElementById('editRuleForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const ruleId = document.getElementById('edit_rule_id').value;
+    const formData = new FormData(this);
+    const data = {
+        category_id: parseInt(formData.get('category_id')),
+        days_before_expiry: parseInt(formData.get('days_before_expiry')),
+        discount_percentage: parseFloat(formData.get('discount_percentage')),
+        rule_name: formData.get('rule_name') || null,
+        is_active: formData.has('is_active')
+    };
+
+    try {
+        const response = await fetch(`/api/inventory/discount-rules/${ruleId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('success', result.message);
+            hideEditModal();
+            location.reload();
+        } else {
+            showAlert('error', result.message);
+        }
+    } catch (error) {
+        showAlert('error', 'Có lỗi xảy ra: ' + error.message);
+    }
+});
+
+// Edit Rule Function
+function editRule(ruleId) {
+    // Find rule data from table
+    const table = document.querySelector('table tbody');
+    const rows = table.querySelectorAll('tr');
+    
+    for (let row of rows) {
+        const cells = row.querySelectorAll('td');
+        if (cells[0].textContent.trim() == ruleId) {
+            // Populate edit form
+            document.getElementById('edit_rule_id').value = ruleId;
+            document.getElementById('edit_days_before_expiry').value = cells[2].querySelector('.badge').textContent.replace(' ngày', '');
+            document.getElementById('edit_discount_percentage').value = cells[3].querySelector('.badge').textContent.replace('%', '');
+            document.getElementById('edit_rule_name').value = cells[4].textContent.trim();
+            document.getElementById('edit_is_active').checked = cells[5].querySelector('.badge').textContent.trim() === 'Hoạt động';
+            
+            // Show modal
+            document.getElementById('editRuleModal').style.display = 'block';
+            break;
+        }
+    }
+}
+
+// Delete Rule Function
+async function deleteRule(ruleId) {
+    if (confirm('Bạn có chắc chắn muốn xóa quy tắc này?')) {
+        try {
+            const response = await fetch(`/api/inventory/discount-rules/${ruleId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('success', result.message);
+                location.reload();
+            } else {
+                showAlert('error', result.message);
+            }
+        } catch (error) {
+            showAlert('error', 'Có lỗi xảy ra: ' + error.message);
+        }
+    }
+}
+
+// Show Alert Function
+function showAlert(type, message) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass}" style="margin-bottom: 15px; padding: 10px 15px; border-radius: 3px;">
+            ${message}
+            <button type="button" onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">×</button>
+        </div>
+    `;
+    
+    // Insert at top of container
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const addModal = document.getElementById('addRuleModal');
+    const editModal = document.getElementById('editRuleModal');
+    
+    if (event.target == addModal) {
+        hideAddModal();
+    }
+    if (event.target == editModal) {
+        hideEditModal();
+    }
+}
+</script>
+{{end}}

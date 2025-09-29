@@ -1,0 +1,315 @@
+{{define "pages/inventory/warehouse"}}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>{{.Title}}</h1>
+        <div class="header-actions">
+            <a href="/inventory" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+            <button class="btn btn-primary" onclick="exportInventory()">
+                <i class="fas fa-download"></i> Xuất báo cáo
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="summary-stats">
+        <div class="summary-item">
+            <span class="summary-label">Tổng mặt hàng:</span>
+            <span class="summary-value">{{.Summary.TotalItems}}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Tổng số lượng:</span>
+            <span class="summary-value">{{.Summary.TotalQuantity}}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Tổng giá trị:</span>
+            <span class="summary-value">{{printf "%.0f" .Summary.TotalValue | }}</span>
+        </div>
+        {{if gt .Summary.ExpiredCount 0}}
+        <div class="summary-item alert-danger">
+            <span class="summary-label">Hết hạn:</span>
+            <span class="summary-value">{{.Summary.ExpiredCount}}</span>
+        </div>
+        {{end}}
+        {{if gt .Summary.NearExpiryCount 0}}
+        <div class="summary-item alert-warning">
+            <span class="summary-label">Sắp hết hạn:</span>
+            <span class="summary-value">{{.Summary.NearExpiryCount}}</span>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <form method="GET" action="/inventory/warehouse" class="filter-form">
+            <div class="filter-group">
+                <label>Kho:</label>
+                <select name="warehouse" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tất cả kho</option>
+                    {{range .Warehouses}}
+                    <option value="{{.WarehouseID}}" {{if eq (printf "%d" .WarehouseID) $.CurrentFilters.WarehouseID}}selected{{end}}>
+                        {{.WarehouseName}}
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Danh mục:</label>
+                <select name="category" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tất cả danh mục</option>
+                    {{range .Categories}}
+                    <option value="{{.CategoryID}}" {{if eq (printf "%d" .CategoryID) $.CurrentFilters.CategoryID}}selected{{end}}>
+                        {{.CategoryName}}
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Tìm kiếm:</label>
+                <input type="text" name="search" class="form-control" 
+                       placeholder="Tên, mã sản phẩm, mã lô..." 
+                       value="{{.CurrentFilters.SearchTerm}}">
+            </div>
+
+            <div class="filter-group">
+                <label>Sắp xếp:</label>
+                <select name="sort" class="form-control" onchange="this.form.submit()">
+                    <option value="quantity" {{if eq .CurrentFilters.SortBy "quantity"}}selected{{end}}>Số lượng (thấp trước)</option>
+                    <option value="expiry" {{if eq .CurrentFilters.SortBy "expiry"}}selected{{end}}>Hạn sử dụng</option>
+                    <option value="value" {{if eq .CurrentFilters.SortBy "value"}}selected{{end}}>Giá trị</option>
+                    <option value="name" {{if eq .CurrentFilters.SortBy "name"}}selected{{end}}>Tên sản phẩm</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Lọc
+            </button>
+            <a href="/inventory/warehouse" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Làm mới
+            </a>
+        </form>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive inventory-table">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Mã SP</th>
+                            <th>Tên sản phẩm</th>
+                            <th>Danh mục</th>
+                            <th>Kho</th>
+                            <th>Mã lô</th>
+                            <th>SL</th>
+                            <th>Ngày nhập</th>
+                            <th>Hạn SD</th>
+                            <th>Giá nhập</th>
+                            <th>Tổng giá trị</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Inventory}}
+                        <tr class="{{if eq .ExpiryStatus "Hết hạn"}}table-danger{{else if eq .ExpiryStatus "Sắp hết hạn"}}table-warning{{else if lt .Quantity 10}}table-info{{end}}">
+                            <td>{{.ProductCode}}</td>
+                            <td>
+                                <a href="/products/{{.ProductID}}">{{.ProductName}}</a>
+                            </td>
+                            <td>{{.CategoryName}}</td>
+                            <td>{{.WarehouseName}}</td>
+                            <td><code>{{.BatchCode}}</code></td>
+                            <td>
+                                <strong>{{.Quantity}}</strong>
+                                {{if lt .Quantity 10}}
+                                <span class="badge badge-warning">Sắp hết</span>
+                                {{end}}
+                            </td>
+                            <td>{{.ImportDate.Format "02/01/2006"}}</td>
+                            <td>
+                                {{if .ExpiryDate}}
+                                    {{.ExpiryDate.Format "02/01/2006"}}
+                                    {{if le .DaysUntilExpiry 0}}
+                                    <br><small class="text-danger">Quá hạn {{.DaysUntilExpiry}} ngày</small>
+                                    {{else if le .DaysUntilExpiry 7}}
+                                    <br><small class="text-warning">Còn {{.DaysUntilExpiry}} ngày</small>
+                                    {{end}}
+                                {{else}}
+                                    <span class="text-muted">-</span>
+                                {{end}}
+                            </td>
+                            <td>{{printf "%.0f" .ImportPrice | }}</td>
+                            <td><strong>{{printf "%.0f" .TotalValue | }}</strong></td>
+                            <td>
+                                {{if eq .ExpiryStatus "Hết hạn"}}
+                                <span class="badge badge-danger">{{.ExpiryStatus}}</span>
+                                {{else if eq .ExpiryStatus "Sắp hết hạn"}}
+                                <span class="badge badge-warning">{{.ExpiryStatus}}</span>
+                                {{else}}
+                                <span class="badge badge-success">{{.ExpiryStatus}}</span>
+                                {{end}}
+                            </td>
+                            <td>
+                                {{if and (ne .ExpiryStatus "Hết hạn") (gt .Quantity 0)}}
+                                <a href="/inventory/transfer?product={{.ProductID}}&warehouse={{.WarehouseID}}&batch={{.BatchCode}}" 
+                                   class="btn btn-sm btn-primary" title="Chuyển lên kệ">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </a>
+                                {{end}}
+                                {{if eq .ExpiryStatus "Hết hạn"}}
+                                <button class="btn btn-sm btn-danger" onclick="disposeProduct({{.InventoryID}})" title="Hủy hàng">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{else}}
+                        <tr>
+                            <td colspan="12" class="text-center text-muted">
+                                Không có dữ liệu kho hàng
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.summary-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.summary-item.alert-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.summary-item.alert-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.summary-label {
+    font-weight: 600;
+}
+
+.summary-value {
+    font-size: 1.2em;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-form {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.filter-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #666;
+}
+
+.filter-group .form-control {
+    min-width: 150px;
+}
+
+.inventory-table {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.inventory-table::-webkit-scrollbar {
+    width: 8px;
+}
+
+.inventory-table::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.inventory-table::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.inventory-table::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+</style>
+
+<script>
+function disposeProduct(inventoryId) {
+    if (!confirm('Bạn có chắc chắn muốn hủy lô hàng này?')) {
+        return;
+    }
+    
+    fetch(`/api/inventory/dispose/${inventoryId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Đã hủy lô hàng thành công');
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    });
+}
+
+function exportInventory() {
+    const params = new URLSearchParams(window.location.search);
+    window.open('/api/inventory/export/warehouse?' + params.toString());
+}
+</script>
+{{end}}

@@ -1,0 +1,372 @@
+{{define "pages/inventory/shelf"}}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>{{.Title}}</h1>
+        <div class="header-actions">
+            <a href="/inventory" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+            <a href="/inventory/transfer" class="btn btn-success">
+                <i class="fas fa-plus"></i> Bổ sung hàng
+            </a>
+            <button class="btn btn-primary" onclick="exportShelfInventory()">
+                <i class="fas fa-download"></i> Xuất báo cáo
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="summary-stats">
+        <div class="summary-item">
+            <span class="summary-label">Tổng mặt hàng:</span>
+            <span class="summary-value">{{.Summary.TotalItems}}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Tổng số lượng:</span>
+            <span class="summary-value">{{.Summary.TotalQuantity}}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Giá trị hàng hóa:</span>
+            <span class="summary-value">{{printf "%.0f" .Summary.TotalValue | }}</span>
+        </div>
+        {{if gt .Summary.LowStockCount 0}}
+        <div class="summary-item alert-warning">
+            <span class="summary-label">Sắp hết hàng:</span>
+            <span class="summary-value">{{.Summary.LowStockCount}}</span>
+        </div>
+        {{end}}
+        {{if gt .Summary.NearExpiryCount 0}}
+        <div class="summary-item alert-info">
+            <span class="summary-label">Sắp hết hạn:</span>
+            <span class="summary-value">{{.Summary.NearExpiryCount}}</span>
+        </div>
+        {{end}}
+        {{if gt .Summary.ExpiredCount 0}}
+        <div class="summary-item alert-danger">
+            <span class="summary-label">Hết hạn:</span>
+            <span class="summary-value">{{.Summary.ExpiredCount}}</span>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <form method="GET" action="/inventory/shelf" class="filter-form">
+            <div class="filter-group">
+                <label>Kệ hàng:</label>
+                <select name="shelf" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tất cả kệ</option>
+                    {{range .Shelves}}
+                    <option value="{{.ShelfID}}" {{if eq (printf "%d" .ShelfID) $.CurrentFilters.ShelfID}}selected{{end}}>
+                        {{.ShelfName}} - {{.Location}}
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Danh mục:</label>
+                <select name="category" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tất cả danh mục</option>
+                    {{range .Categories}}
+                    <option value="{{.CategoryID}}" {{if eq (printf "%d" .CategoryID) $.CurrentFilters.CategoryID}}selected{{end}}>
+                        {{.CategoryName}}
+                    </option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Tìm kiếm:</label>
+                <input type="text" name="search" class="form-control" 
+                       placeholder="Tên sản phẩm, mã SP, mã lô..." 
+                       value="{{.CurrentFilters.SearchTerm}}">
+            </div>
+
+            <div class="filter-group">
+                <label>Sắp xếp:</label>
+                <select name="sort" class="form-control" onchange="this.form.submit()">
+                    <option value="quantity" {{if eq .CurrentFilters.SortBy "quantity"}}selected{{end}}>Số lượng (thấp trước)</option>
+                    <option value="expiry" {{if eq .CurrentFilters.SortBy "expiry"}}selected{{end}}>Hạn sử dụng</option>
+                    <option value="sales" {{if eq .CurrentFilters.SortBy "sales"}}selected{{end}}>Doanh số</option>
+                    <option value="name" {{if eq .CurrentFilters.SortBy "name"}}selected{{end}}>Tên sản phẩm</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Lọc
+            </button>
+            <a href="/inventory/shelf" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Làm mới
+            </a>
+        </form>
+    </div>
+
+    <!-- Shelf Inventory Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive inventory-table">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Kệ</th>
+                            <th>Mã SP</th>
+                            <th>Tên sản phẩm</th>
+                            <th>Danh mục</th>
+                            <th>Mã lô</th>
+                            <th>SL hiện tại</th>
+                            <th>SL tối đa</th>
+                            <th>Ngày lên kệ</th>
+                            <th>Hạn SD</th>
+                            <th>Giá bán</th>
+                            <th>Giảm giá</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Inventory}}
+                        <tr class="{{if eq .ExpiryStatus "Hết hạn"}}table-danger{{else if eq .StockStatus "Sắp hết hàng"}}table-warning{{else if .IsNearExpiry}}table-info{{end}}">
+                            <td>
+                                <strong>{{.ShelfName}}</strong>
+                                <br><small>{{.Location}}</small>
+                            </td>
+                            <td>{{.ProductCode}}</td>
+                            <td>
+                                <a href="/products/{{.ProductID}}">{{.ProductName}}</a>
+                            </td>
+                            <td>{{.CategoryName}}</td>
+                            <td><code>{{.BatchCode}}</code></td>
+                            <td>
+                                <strong>{{.Quantity}}</strong>
+                                {{if lt .Quantity 10}}
+                                <br><span class="badge badge-warning">Sắp hết</span>
+                                {{end}}
+                            </td>
+                            <td>
+                                {{.MaxQuantity}}
+                                <div class="progress" style="height: 5px; margin-top: 5px;">
+                                    <div class="progress-bar {{if lt .Quantity 10}}bg-danger{{else if lt .Quantity 20}}bg-warning{{else}}bg-success{{end}}" 
+                                         style="width: {{if gt .MaxQuantity 0}}{{.Quantity}}{{else}}0{{end}}%"></div>
+                                </div>
+                            </td>
+                            <td>{{.StockedDate.Format "02/01/2006"}}</td>
+                            <td>
+                                {{if .ExpiryDate}}
+                                    {{.ExpiryDate.Format "02/01/2006"}}
+                                    {{if le .DaysUntilExpiry 0}}
+                                    <br><small class="text-danger">Hết hạn {{.DaysUntilExpiry}} ngày</small>
+                                    {{else if le .DaysUntilExpiry 7}}
+                                    <br><small class="text-warning">Còn {{.DaysUntilExpiry}} ngày</small>
+                                    {{end}}
+                                {{else}}
+                                    <span class="text-muted">-</span>
+                                {{end}}
+                            </td>
+                            <td>{{printf "%.0f" .CurrentPrice | }}</td>
+                            <td>
+                                {{if gt .DiscountPercent 0.0}}
+                                <span class="badge badge-success">-{{.DiscountPercent}}%</span>
+                                {{else}}
+                                <span class="text-muted">-</span>
+                                {{end}}
+                            </td>
+                            <td>
+                                <div class="status-badges">
+                                    {{if eq .StockStatus "Sắp hết hàng"}}
+                                    <span class="badge badge-warning">{{.StockStatus}}</span>
+                                    {{else if eq .StockStatus "Đầy kệ"}}
+                                    <span class="badge badge-success">{{.StockStatus}}</span>
+                                    {{end}}
+                                    
+                                    {{if eq .ExpiryStatus "Hết hạn"}}
+                                    <span class="badge badge-danger">{{.ExpiryStatus}}</span>
+                                    {{else if eq .ExpiryStatus "Sắp hết hạn"}}
+                                    <span class="badge badge-info">{{.ExpiryStatus}}</span>
+                                    {{end}}
+                                </div>
+                            </td>
+                            <td>
+                                {{if eq .StockStatus "Sắp hết hàng"}}
+                                <a href="/inventory/transfer?product={{.ProductID}}&shelf={{.ShelfID}}" 
+                                   class="btn btn-sm btn-primary" title="Bổ sung hàng">
+                                    <i class="fas fa-plus"></i>
+                                </a>
+                                {{end}}
+                                {{if and (eq .ExpiryStatus "Sắp hết hạn") (eq .DiscountPercent 0.0)}}
+                                <button class="btn btn-sm btn-warning" onclick="applyDiscount({{.ShelfBatchID}})" title="Áp dụng giảm giá">
+                                    <i class="fas fa-percentage"></i>
+                                </button>
+                                {{end}}
+                                {{if eq .ExpiryStatus "Hết hạn"}}
+                                <button class="btn btn-sm btn-danger" onclick="removeFromShelf({{.ShelfBatchID}})" title="Loại khỏi kệ">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{else}}
+                        <tr>
+                            <td colspan="13" class="text-center text-muted">
+                                Không có dữ liệu kệ hàng
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.summary-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.summary-item.alert-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.summary-item.alert-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.summary-item.alert-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-form {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.status-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.progress {
+    background: #e9ecef;
+}
+
+.inventory-table {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.inventory-table::-webkit-scrollbar {
+    width: 8px;
+}
+
+.inventory-table::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.inventory-table::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.inventory-table::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+</style>
+
+<script>
+function applyDiscount(shelfBatchId) {
+    if (!confirm('Áp dụng giảm giá cho sản phẩm sắp hết hạn?')) {
+        return;
+    }
+    
+    fetch('/inventory/apply-discount', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ shelf_batch_id: shelfBatchId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    });
+}
+
+function removeFromShelf(shelfBatchId) {
+    if (!confirm('Bạn có chắc chắn muốn loại sản phẩm hết hạn khỏi kệ?')) {
+        return;
+    }
+    
+    fetch(`/api/shelf/batch/${shelfBatchId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Đã loại sản phẩm khỏi kệ');
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    });
+}
+
+function exportShelfInventory() {
+    const params = new URLSearchParams(window.location.search);
+    window.open('/api/inventory/export/shelf?' + params.toString());
+}
+</script>
+{{end}}

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -25,6 +26,10 @@ func NewServer() *Server {
 	engine := html.New("./web/templates", ".html")
 	engine.Reload(true) // Enable hot reload for development
 
+	// Debug: List available templates
+	fmt.Println("DEBUG: Template engine initialized")
+	fmt.Println("DEBUG: Template directory: ./web/templates")
+
 	// Add custom template functions
 	engine.AddFunc("formatDate", func(t time.Time) string {
 		return t.Format("02/01/2006 15:04")
@@ -46,6 +51,27 @@ func NewServer() *Server {
 			return 0
 		}
 		return a / b
+	})
+	engine.AddFunc("json", func(v interface{}) string {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "{}"
+		}
+		return string(b)
+	})
+	engine.AddFunc("add", func(a, b int) int {
+		return a + b
+	})
+	engine.AddFunc("sub", func(a, b int) int {
+		return a - b
+	})
+	engine.AddFunc("len", func(slice interface{}) int {
+		switch v := slice.(type) {
+		case []interface{}:
+			return len(v)
+		default:
+			return 0
+		}
 	})
 
 	// Create Fiber app with template engine
@@ -186,10 +212,39 @@ func setupRoutes(app *fiber.App) {
 	inventory.Post("/transfer", handlers.StockTransfer)
 	inventory.Get("/low-stock", handlers.LowStockAlert)
 	inventory.Get("/expired", handlers.ExpiredProducts)
+	inventory.Get("/transfers", handlers.StockTransferHistory)
+	inventory.Post("/apply-discount", handlers.ApplyDiscountRules)
+
+	// Discount rules management
+	inventory.Get("/discount-rules", handlers.DiscountRulesList)
+	inventory.Post("/discount-rules", handlers.CreateDiscountRule)
+	inventory.Put("/discount-rules/:id", handlers.UpdateDiscountRule)
+	inventory.Delete("/discount-rules/:id", handlers.DeleteDiscountRule)
+
+	// Purchase order management
+	purchaseOrders := app.Group("/purchase-orders")
+	purchaseOrders.Get("/", handlers.PurchaseOrderList)
+	purchaseOrders.Get("/new", handlers.PurchaseOrderNew)
+	purchaseOrders.Get("/create", handlers.PurchaseOrderNew) // Alias for /new
+	purchaseOrders.Post("/", handlers.PurchaseOrderCreate)
+	purchaseOrders.Get("/:id", handlers.PurchaseOrderView)
+	purchaseOrders.Get("/:id/edit", handlers.PurchaseOrderEdit)
+	purchaseOrders.Put("/:id", handlers.PurchaseOrderUpdate)
+	purchaseOrders.Delete("/:id", handlers.PurchaseOrderDelete)
 
 	// Sales operations
 	sales := app.Group("/sales")
 	sales.Get("/", handlers.SalesList)
+	sales.Get("/simple", handlers.SalesListSimple)
+	sales.Get("/test", func(c *fiber.Ctx) error {
+		return c.Render("pages/sales/test", fiber.Map{
+			"InvoiceCount": 5,
+			"Invoices": []fiber.Map{
+				{"InvoiceNo": "TEST001", "TotalAmount": 100000},
+				{"InvoiceNo": "TEST002", "TotalAmount": 200000},
+			},
+		})
+	})
 	sales.Get("/new", handlers.SalesNew)
 	sales.Post("/", handlers.SalesCreate)
 	sales.Get("/:id", handlers.SalesView)
@@ -220,4 +275,10 @@ func setupRoutes(app *fiber.App) {
 
 	// Discount calculation
 	api.Post("/discount/calculate", handlers.CalculateDiscount)
+
+	// Discount rules API
+	apiInventory := api.Group("/inventory")
+	apiInventory.Post("/discount-rules", handlers.CreateDiscountRule)
+	apiInventory.Put("/discount-rules/:id", handlers.UpdateDiscountRule)
+	apiInventory.Delete("/discount-rules/:id", handlers.DeleteDiscountRule)
 }

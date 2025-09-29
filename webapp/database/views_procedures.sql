@@ -21,7 +21,7 @@ SELECT
     COALESCE(wi.total_warehouse, 0) AS warehouse_quantity,
     COALESCE(si.total_shelf, 0) AS shelf_quantity,
     COALESCE(wi.total_warehouse, 0) + COALESCE(si.total_shelf, 0) AS total_quantity
-FROM products p
+FROM supermarket.products p
 LEFT JOIN product_categories c ON p.category_id = c.category_id
 LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
 LEFT JOIN (
@@ -46,7 +46,7 @@ SELECT
     COALESCE(wi.total_warehouse, 0) AS warehouse_quantity,
     COALESCE(si.total_shelf, 0) AS shelf_quantity,
     COALESCE(wi.total_warehouse, 0) + COALESCE(si.total_shelf, 0) AS total_quantity
-FROM products p
+FROM supermarket.products p
 LEFT JOIN product_categories c ON p.category_id = c.category_id
 LEFT JOIN (
     SELECT product_id, SUM(quantity) AS total_warehouse
@@ -75,7 +75,7 @@ SELECT
         WHEN p.low_stock_threshold > 0 THEN ROUND(100.0 * COALESCE(si.total_shelf, 0) / p.low_stock_threshold, 2)
         ELSE 0 
     END AS shelf_fill_percentage
-FROM products p
+FROM supermarket.products p
 LEFT JOIN product_categories c ON p.category_id = c.category_id
 LEFT JOIN (
     SELECT product_id, SUM(quantity) AS total_warehouse
@@ -107,7 +107,7 @@ SELECT
         WHEN p.low_stock_threshold > 0 THEN ROUND(100.0 * COALESCE(si.total_shelf, 0) / p.low_stock_threshold, 2)
         ELSE 0 
     END AS shelf_fill_percentage
-FROM products p
+FROM supermarket.products p
 LEFT JOIN product_categories c ON p.category_id = c.category_id
 LEFT JOIN (
     SELECT product_id, SUM(quantity) AS total_warehouse
@@ -139,7 +139,7 @@ SELECT
     sbi.discount_percent,
     sbi.expiry_date - CURRENT_DATE AS days_remaining
 FROM shelf_batch_inventory sbi
-JOIN products p ON sbi.product_id = p.product_id
+JOIN supermarket.products p ON sbi.product_id = p.product_id
 JOIN product_categories c ON p.category_id = c.category_id
 JOIN display_shelves ds ON sbi.shelf_id = ds.shelf_id
 WHERE sbi.expiry_date <= CURRENT_DATE + INTERVAL '7 days'
@@ -157,7 +157,7 @@ SELECT
     SUM(sid.subtotal) AS total_revenue,
     COUNT(DISTINCT si.invoice_id) AS transaction_count
 FROM sales_invoice_details sid
-JOIN products p ON sid.product_id = p.product_id
+JOIN supermarket.products p ON sid.product_id = p.product_id
 JOIN product_categories c ON p.category_id = c.category_id
 JOIN sales_invoices si ON sid.invoice_id = si.invoice_id
 GROUP BY p.product_id, p.product_code, p.product_name, c.category_name;
@@ -172,7 +172,7 @@ SELECT
     SUM(pr.total_sold) AS total_units_sold,
     SUM(pr.total_revenue) AS total_revenue
 FROM suppliers s
-JOIN products p ON s.supplier_id = p.supplier_id
+JOIN supermarket.products p ON s.supplier_id = p.supplier_id
 LEFT JOIN v_product_revenue pr ON p.product_id = pr.product_id
 GROUP BY s.supplier_id, s.supplier_name, s.contact_person
 ORDER BY total_revenue DESC NULLS LAST;
@@ -236,7 +236,7 @@ BEGIN
     
     -- Lấy category và giá bán
     SELECT category_id, selling_price INTO v_category_id, v_selling_price
-    FROM products WHERE product_id = p_product_id;
+    FROM supermarket.products WHERE product_id = p_product_id;
     
     -- Lấy quy tắc giảm giá theo category và số ngày
     SELECT discount_percentage INTO v_discount_percent
@@ -330,7 +330,7 @@ BEGIN
     ) VALUES (
         p_to_shelf_id, p_product_id, v_batch_code, p_quantity,
         v_expiry_date, v_import_price, 
-        (SELECT selling_price FROM products WHERE product_id = p_product_id), 0
+        (SELECT selling_price FROM supermarket.products WHERE product_id = p_product_id), 0
     )
     ON CONFLICT (shelf_id, product_id, batch_code)
     DO UPDATE SET quantity = shelf_batch_inventory.quantity + p_quantity;
@@ -373,7 +373,7 @@ BEGIN
     
     -- Tính discount dựa trên membership level
     IF v_customer_id IS NOT NULL THEN
-        SELECT ml.discount_rate INTO v_discount_rate
+        SELECT ml.discount_percentage INTO v_discount_rate
         FROM customers c
         JOIN membership_levels ml ON c.membership_level_id = ml.level_id
         WHERE c.customer_id = v_customer_id;
@@ -401,7 +401,7 @@ BEGIN
     FOR rec IN 
         SELECT sbi.shelf_batch_id, sbi.product_id, sbi.expiry_date, p.category_id
         FROM shelf_batch_inventory sbi
-        JOIN products p ON sbi.product_id = p.product_id
+        JOIN supermarket.products p ON sbi.product_id = p.product_id
         WHERE sbi.expiry_date > CURRENT_DATE
           AND sbi.quantity > 0
     LOOP
@@ -420,7 +420,7 @@ BEGIN
                 is_near_expiry = TRUE,
                 current_price = (
                     SELECT selling_price * (1 - v_discount_percent / 100)
-                    FROM products WHERE product_id = rec.product_id
+                    FROM supermarket.products WHERE product_id = rec.product_id
                 )
             WHERE shelf_batch_id = rec.shelf_batch_id;
         END IF;
@@ -477,7 +477,7 @@ BEGIN
         sl.max_quantity - si.current_quantity AS suggested_restock
     FROM shelf_inventory si
     JOIN display_shelves ds ON si.shelf_id = ds.shelf_id
-    JOIN products p ON si.product_id = p.product_id
+    JOIN supermarket.products p ON si.product_id = p.product_id
     JOIN shelf_layout sl ON si.shelf_id = sl.shelf_id AND si.product_id = sl.product_id
     WHERE si.current_quantity <= si.restock_threshold
     ORDER BY si.current_quantity ASC;
@@ -561,7 +561,7 @@ BEGIN
         SUM(sid.subtotal) AS total_revenue,
         AVG(sid.unit_price) AS avg_price
     FROM sales_invoice_details sid
-    JOIN products p ON sid.product_id = p.product_id
+    JOIN supermarket.products p ON sid.product_id = p.product_id
     JOIN product_categories pc ON p.category_id = pc.category_id
     GROUP BY p.product_id, p.product_code, p.product_name, pc.category_name
     ORDER BY total_sold DESC

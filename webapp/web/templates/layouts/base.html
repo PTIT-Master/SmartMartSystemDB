@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}} - Hệ thống quản lý siêu thị</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -114,46 +116,48 @@
             color: #e74c3c;
         }
         
-        /* Main Layout */
-        .container {
-            margin-top: 60px;
-            margin-bottom: 220px;
-            padding: 20px;
-            max-width: 1400px;
-            margin-left: auto;
-            margin-right: auto;
+        
+        /* Bootstrap Navbar Customization */
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.25rem;
         }
         
-        /* Navigation */
-        nav {
-            background: #3498db;
-            padding: 10px 20px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 9998;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        .navbar-nav .nav-link {
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
         }
-        nav ul {
-            list-style: none;
-            display: flex;
-            gap: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
+        
+        .navbar-nav .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 0.375rem;
         }
-        nav a {
-            color: white;
-            text-decoration: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            transition: background 0.3s;
+        
+        .navbar-nav .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 0.375rem;
         }
-        nav a:hover {
-            background: #2980b9;
+        
+        .dropdown-menu {
+            border: none;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            border-radius: 0.5rem;
         }
-        nav a.active {
-            background: #2c3e50;
+        
+        .dropdown-item {
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+            color: #0d6efd;
+        }
+        
+        .dropdown-item i {
+            margin-right: 0.5rem;
+            width: 1rem;
+            text-align: center;
         }
         
         /* Cards */
@@ -348,20 +352,110 @@
     </div>
 
     <!-- Navigation -->
-    <nav>
-        <ul>
-            <li><a href="/" {{if eq .Active "home"}}class="active"{{end}}>Trang chủ</a></li>
-            <li><a href="/products" {{if eq .Active "products"}}class="active"{{end}}>Sản phẩm</a></li>
-            <li><a href="/inventory" {{if eq .Active "inventory"}}class="active"{{end}}>Kho hàng</a></li>
-            <li><a href="/sales" {{if eq .Active "sales"}}class="active"{{end}}>Bán hàng</a></li>
-            <li><a href="/employees" {{if eq .Active "employees"}}class="active"{{end}}>Nhân viên</a></li>
-            <li><a href="/customers" {{if eq .Active "customers"}}class="active"{{end}}>Khách hàng</a></li>
-            <li><a href="/reports" {{if eq .Active "reports"}}class="active"{{end}}>Báo cáo</a></li>
-        </ul>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-store"></i> Siêu thị ABC
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "home"}}active{{end}}" href="/">
+                            <i class="fas fa-home"></i> Trang chủ
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "products"}}active{{end}}" href="/products">
+                            <i class="fas fa-box"></i> Sản phẩm
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "purchase-orders"}}active{{end}}" href="/purchase-orders">
+                            <i class="fas fa-shopping-cart"></i> Đơn đặt hàng
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{if eq .Active "inventory"}}active{{end}}" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-warehouse"></i> Kho hàng
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/inventory">
+                                <i class="fas fa-chart-pie"></i> Tổng quan
+                            </a></li>
+                            <li><a class="dropdown-item" href="/inventory/warehouse">
+                                <i class="fas fa-warehouse"></i> Kho hàng
+                            </a></li>
+                            <li><a class="dropdown-item" href="/inventory/shelf">
+                                <i class="fas fa-th"></i> Kệ hàng
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/inventory/low-stock">
+                                <i class="fas fa-exclamation-triangle"></i> Cảnh báo tồn kho
+                            </a></li>
+                            <li><a class="dropdown-item" href="/inventory/expired">
+                                <i class="fas fa-clock"></i> Hàng hết hạn
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/inventory/transfers">
+                                <i class="fas fa-exchange-alt"></i> Lịch sử chuyển hàng
+                            </a></li>
+                            <li><a class="dropdown-item" href="/inventory/discount-rules">
+                                <i class="fas fa-percentage"></i> Quy tắc giảm giá
+                            </a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "sales"}}active{{end}}" href="/sales">
+                            <i class="fas fa-receipt"></i> Bán hàng
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "employees"}}active{{end}}" href="/employees">
+                            <i class="fas fa-users"></i> Nhân viên
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "customers"}}active{{end}}" href="/customers">
+                            <i class="fas fa-user-friends"></i> Khách hàng
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{if eq .Active "reports"}}active{{end}}" href="/reports">
+                            <i class="fas fa-chart-bar"></i> Báo cáo
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user"></i> Admin
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#">
+                                <i class="fas fa-user-cog"></i> Hồ sơ
+                            </a></li>
+                            <li><a class="dropdown-item" href="#">
+                                <i class="fas fa-cog"></i> Cài đặt
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">
+                                <i class="fas fa-sign-out-alt"></i> Đăng xuất
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </nav>
 
     <!-- Main Content -->
-    <div class="container">
+    <div class="container-fluid" style="margin-top: 80px; margin-bottom: 220px;">
         {{embed}}
     </div>
 
@@ -455,5 +549,6 @@
         // Auto-refresh SQL logs every 2 seconds
         setInterval(refreshSQLLogs, 2000);
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

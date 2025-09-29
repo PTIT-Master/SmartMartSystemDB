@@ -1,0 +1,276 @@
+{{define "pages/inventory/overview"}}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>{{.Title}}</h1>
+        <div class="header-actions">
+            <a href="/inventory/warehouse" class="btn btn-primary">
+                <i class="fas fa-warehouse"></i> Kho hàng
+            </a>
+            <a href="/inventory/shelf" class="btn btn-info">
+                <i class="fas fa-th"></i> Kệ hàng
+            </a>
+            <a href="/inventory/low-stock" class="btn btn-warning">
+                <i class="fas fa-exclamation-triangle"></i> Cảnh báo tồn kho
+            </a>
+            <a href="/inventory/expired" class="btn btn-danger">
+                <i class="fas fa-clock"></i> Hàng hết hạn
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary">
+                <i class="fas fa-box"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{.Stats.TotalProducts}}</div>
+                <div class="stat-label">Tổng sản phẩm</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon bg-info">
+                <i class="fas fa-warehouse"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{.Stats.TotalWarehouseItems}}</div>
+                <div class="stat-label">Tồn kho</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon bg-success">
+                <i class="fas fa-th"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{.Stats.TotalShelfItems}}</div>
+                <div class="stat-label">Trên kệ</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon bg-secondary">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{printf "%.0f" .Stats.TotalValue}}</div>
+                <div class="stat-label">Giá trị tồn kho</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Cards -->
+    <div class="alert-grid">
+        {{if gt .Stats.LowStockCount 0}}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>{{.Stats.LowStockCount}}</strong> sản phẩm sắp hết hàng
+            <a href="/inventory/low-stock" class="alert-link">Xem chi tiết →</a>
+        </div>
+        {{end}}
+
+        {{if gt .Stats.NearExpiryCount 0}}
+        <div class="alert alert-info">
+            <i class="fas fa-clock"></i>
+            <strong>{{.Stats.NearExpiryCount}}</strong> sản phẩm sắp hết hạn
+            <a href="/inventory/expired" class="alert-link">Xem chi tiết →</a>
+        </div>
+        {{end}}
+
+        {{if gt .Stats.ExpiredCount 0}}
+        <div class="alert alert-danger">
+            <i class="fas fa-times-circle"></i>
+            <strong>{{.Stats.ExpiredCount}}</strong> sản phẩm đã hết hạn
+            <a href="/inventory/expired" class="alert-link">Xử lý ngay →</a>
+        </div>
+        {{end}}
+
+        {{if gt .Stats.OutOfStockCount 0}}
+        <div class="alert alert-secondary">
+            <i class="fas fa-ban"></i>
+            <strong>{{.Stats.OutOfStockCount}}</strong> sản phẩm hết hàng
+            <a href="/inventory/low-stock" class="alert-link">Đặt hàng →</a>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="row">
+        <!-- Recent Stock Transfers -->
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Lịch sử chuyển hàng</h3>
+                    <div class="header-actions">
+                        <a href="/inventory/transfer" class="btn btn-sm btn-primary">
+                            <i class="fas fa-exchange-alt"></i> Chuyển hàng mới
+                        </a>
+                        <a href="/inventory/transfers" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-list"></i> Xem tất cả
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive transfer-table">
+                        <table class="table table-sm table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Sản phẩm</th>
+                                    <th>Từ kho</th>
+                                    <th>Đến kệ</th>
+                                    <th>SL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .RecentTransfers}}
+                                <tr>
+                                    <td>
+                                        <small class="text-muted">{{.TransferDate.Format "02/01/2006"}}</small>
+                                        <br><small class="text-muted">{{.TransferDate.Format "15:04"}}</small>
+                                    </td>
+                                    <td>
+                                        <strong>{{.ProductName}}</strong>
+                                        <br><small class="text-muted">ID: {{.TransferID}}</small>
+                                    </td>
+                                    <td>{{.FromWarehouseName}}</td>
+                                    <td>{{.ToShelfName}}</td>
+                                    <td>
+                                        <span class="badge badge-info">{{.Quantity}}</span>
+                                    </td>
+                                </tr>
+                                {{else}}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                                        <br>Chưa có lịch sử chuyển hàng
+                                        <br><small>Bắt đầu chuyển hàng để xem lịch sử tại đây</small>
+                                    </td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Inventory -->
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Tồn kho theo danh mục</h3>
+                </div>
+                <div class="card-body">
+                    <div class="category-inventory">
+                        {{range .CategoryInventory}}
+                        <div class="category-item">
+                            <div class="category-info">
+                                <strong>{{.CategoryName}}</strong>
+                                <small class="text-muted">{{.TotalProducts}} sản phẩm</small>
+                            </div>
+                            <div class="category-stats">
+                                <span class="badge badge-primary">{{.TotalQuantity}} items</span>
+                                <span class="badge badge-success">{{printf "%.0f" .TotalValue}}</span>
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.alert-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+.alert-link {
+    margin-left: auto;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.category-inventory {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.category-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.category-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.category-stats {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.transfer-table {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.transfer-table::-webkit-scrollbar {
+    width: 6px;
+}
+
+.transfer-table::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.transfer-table::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.transfer-table::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+</style>
+{{end}}

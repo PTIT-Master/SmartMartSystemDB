@@ -1,0 +1,15 @@
+{{define "pages/sales/test"}}
+<div class="container-fluid">
+    <h1>Test Sales Page</h1>
+    <p>If you can see this, template rendering works!</p>
+    <p>Invoice count: {{.InvoiceCount}}</p>
+    {{if .Invoices}}
+        <p>Found invoices (count from data: {{.InvoiceCount}})</p>
+        {{range .Invoices}}
+            <div>{{.InvoiceNo}} - {{.TotalAmount}}</div>
+        {{end}}
+    {{else}}
+        <p>No invoices found</p>
+    {{end}}
+</div>
+{{end}}

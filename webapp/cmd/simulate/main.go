@@ -154,6 +154,9 @@ func clearSimulationData(db *gorm.DB, startDate, endDate string) error {
 			log.Printf("Warning: Could not truncate warehouse inventory: %v", err)
 		}
 		if err := tx.Exec(`TRUNCATE TABLE shelf_batch_inventory RESTART IDENTITY CASCADE`).Error; err != nil {
+			log.Printf("Warning: Could not truncate shelf batch inventory: %v", err)
+		}
+		if err := tx.Exec(`TRUNCATE TABLE shelf_inventory RESTART IDENTITY CASCADE`).Error; err != nil {
 			log.Printf("Warning: Could not truncate shelf inventory: %v", err)
 		}
 		if err := tx.Exec(`TRUNCATE TABLE shelf_layout RESTART IDENTITY CASCADE`).Error; err != nil {

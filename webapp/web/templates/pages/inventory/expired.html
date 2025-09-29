@@ -1,0 +1,549 @@
+{{define "pages/inventory/expired"}}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>{{.Title}}</h1>
+        <div class="header-actions">
+            <a href="/inventory" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+            <button class="btn btn-warning" onclick="applyAllDiscounts()">
+                <i class="fas fa-percentage"></i> Áp dụng giảm giá
+            </button>
+            <button class="btn btn-danger" onclick="disposeExpired()">
+                <i class="fas fa-trash"></i> Hủy hàng hết hạn
+            </button>
+            <button class="btn btn-primary" onclick="exportReport()">
+                <i class="fas fa-download"></i> Xuất báo cáo
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+        <div class="summary-card danger">
+            <div class="card-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="card-content">
+                <div class="card-value">{{.TotalExpired}}</div>
+                <div class="card-label">Sản phẩm hết hạn</div>
+                <div class="card-sublabel">Tổng thiệt hại: {{printf "%.0f" .TotalLoss | }}</div>
+            </div>
+        </div>
+
+        <div class="summary-card warning">
+            <div class="card-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="card-content">
+                <div class="card-value">{{.TotalNearExpiry}}</div>
+                <div class="card-label">Sắp hết hạn (7 ngày)</div>
+                <div class="card-sublabel">Doanh thu tiềm năng: {{printf "%.0f" .TotalPotentialRevenue | }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expired Products Section -->
+    {{if .ExpiredProducts}}
+    <div class="section-card expired">
+        <div class="section-header">
+            <h3><i class="fas fa-times-circle"></i> Sản phẩm đã hết hạn</h3>
+            <div class="header-actions">
+                <span class="badge badge-danger">{{len .ExpiredProducts}} lô hàng</span>
+                <button class="btn btn-sm btn-danger" onclick="disposeAllExpired()">
+                    <i class="fas fa-trash"></i> Hủy tất cả
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="30">
+                            <input type="checkbox" onchange="toggleAll(this, 'expired')" />
+                        </th>
+                        <th>Vị trí</th>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Mã lô</th>
+                        <th>SL</th>
+                        <th>Ngày hết hạn</th>
+                        <th>Quá hạn (ngày)</th>
+                        <th>Giá nhập</th>
+                        <th>Thiệt hại</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ExpiredProducts}}
+                    <tr class="table-danger">
+                        <td>
+                            <input type="checkbox" class="product-select expired" 
+                                   data-inventory-id="{{.InventoryID}}" 
+                                   data-inventory-type="{{.InventoryType}}" />
+                        </td>
+                        <td>
+                            {{if eq .InventoryType "Kho"}}
+                                <span class="badge badge-secondary">Kho</span>
+                            {{else}}
+                                <span class="badge badge-info">Kệ</span>
+                            {{end}}
+                            <br><small>{{.LocationName}}</small>
+                        </td>
+                        <td>{{.ProductCode}}</td>
+                        <td>
+                            <a href="/products/{{.ProductID}}"><strong>{{.ProductName}}</strong></a>
+                        </td>
+                        <td>{{.CategoryName}}</td>
+                        <td><code>{{.BatchCode}}</code></td>
+                        <td><strong>{{.Quantity}}</strong></td>
+                        <td>{{.ExpiryDate.Format "02/01/2006"}}</td>
+                        <td>
+                            <span class="badge badge-danger">{{.DaysExpired}} ngày</span>
+                        </td>
+                        <td>{{printf "%.0f" .ImportPrice | }}</td>
+                        <td class="text-danger">
+                            <strong>{{printf "%.0f" .LossValue | }}</strong>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" 
+                                    onclick="disposeItem('{{.InventoryType}}', {{.InventoryID}})"
+                                    title="Hủy lô hàng">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                <tfoot>
+                    <tr class="table-active">
+                        <td colspan="10" class="text-right"><strong>Tổng thiệt hại:</strong></td>
+                        <td class="text-danger"><strong>{{printf "%.0f" .TotalLoss | }}</strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Near Expiry Products Section -->
+    {{if .NearExpiryProducts}}
+    <div class="section-card near-expiry">
+        <div class="section-header">
+            <h3><i class="fas fa-clock"></i> Sản phẩm sắp hết hạn</h3>
+            <div class="header-actions">
+                <span class="badge badge-warning">{{len .NearExpiryProducts}} lô hàng</span>
+                <button class="btn btn-sm btn-warning" onclick="applyDiscountToSelected()">
+                    <i class="fas fa-percentage"></i> Áp dụng giảm giá
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="30">
+                            <input type="checkbox" onchange="toggleAll(this, 'near-expiry')" />
+                        </th>
+                        <th>Vị trí</th>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Mã lô</th>
+                        <th>SL</th>
+                        <th>Ngày hết hạn</th>
+                        <th>Còn (ngày)</th>
+                        <th>Giá hiện tại</th>
+                        <th>Giảm hiện tại</th>
+                        <th>Đề xuất giảm</th>
+                        <th>Doanh thu dự kiến</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .NearExpiryProducts}}
+                    <tr class="{{if le .DaysUntilExpiry 3}}table-warning{{else}}table-info{{end}}">
+                        <td>
+                            <input type="checkbox" class="product-select near-expiry" 
+                                   data-inventory-id="{{.InventoryID}}" 
+                                   data-inventory-type="{{.InventoryType}}" />
+                        </td>
+                        <td>
+                            {{if eq .InventoryType "Kho"}}
+                                <span class="badge badge-secondary">Kho</span>
+                            {{else}}
+                                <span class="badge badge-info">Kệ</span>
+                            {{end}}
+                            <br><small>{{.LocationName}}</small>
+                        </td>
+                        <td>{{.ProductCode}}</td>
+                        <td>
+                            <a href="/products/{{.ProductID}}"><strong>{{.ProductName}}</strong></a>
+                        </td>
+                        <td>{{.CategoryName}}</td>
+                        <td><code>{{.BatchCode}}</code></td>
+                        <td><strong>{{.Quantity}}</strong></td>
+                        <td>{{.ExpiryDate.Format "02/01/2006"}}</td>
+                        <td>
+                            {{if le .DaysUntilExpiry 3}}
+                                <span class=" badge-danger">{{.DaysUntilExpiry}} ngày</span>
+                            {{else if le .DaysUntilExpiry 5}}
+                                <span class=" badge-warning">{{.DaysUntilExpiry}} ngày</span>
+                            {{else}}
+                                <span class="  badge-info">{{.DaysUntilExpiry}} ngày</span>
+                            {{end}}
+                        </td>
+                        <td>{{printf "%.0f" .CurrentPrice | }}</td>
+                        <td>
+                            {{if gt .DiscountPercent 0.0}}
+                                <span class="badge badge-success">-{{.DiscountPercent}}%</span>
+                            {{else}}
+                                <span class="text-muted">Chưa giảm</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <span class=" badge-primary">-{{.SuggestedDiscount}}%</span>
+                        </td>
+                        <td class="text-success">
+                            <strong>{{printf "%.0f" .PotentialRevenue | }}</strong>
+                        </td>
+                        <td>
+                            {{if eq .InventoryType "Kho"}}
+                            <a href="/inventory/transfer?product={{.ProductID}}&batch={{.BatchCode}}" 
+                               class="btn btn-sm btn-primary" title="Chuyển lên kệ">
+                                <i class="fas fa-exchange-alt"></i>
+                            </a>
+                            {{else if eq .DiscountPercent 0.0}}
+                            <button class="btn btn-sm btn-warning" 
+                                    onclick="applyDiscount('{{.InventoryType}}', {{.InventoryID}}, {{.SuggestedDiscount}})"
+                                    title="Áp dụng giảm giá">
+                                <i class="fas fa-percentage"></i>
+                            </button>
+                            {{end}}
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                <tfoot>
+                    <tr class="table-active">
+                        <td colspan="12" class="text-right"><strong>Tổng doanh thu tiềm năng:</strong></td>
+                        <td class="text-success"><strong>{{printf "%.0f" .TotalPotentialRevenue | }}</strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {{end}}
+
+    {{if and (eq .TotalExpired 0) (eq .TotalNearExpiry 0)}}
+    <div class="empty-state">
+        <i class="fas fa-check-circle"></i>
+        <h3>Không có sản phẩm hết hạn</h3>
+        <p>Tất cả sản phẩm đều trong thời hạn sử dụng an toàn</p>
+        <a href="/inventory" class="btn btn-primary">Quay lại tổng quan</a>
+    </div>
+    {{end}}
+
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 0.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.summary-card.danger {
+    border-left: 4px solid #dc3545;
+}
+
+.summary-card.warning {
+    border-left: 4px solid #ffc107;
+}
+
+.card-icon {
+    font-size: 2.5rem;
+    opacity: 0.7;
+}
+
+.summary-card.danger .card-icon {
+    color: #dc3545;
+}
+
+.summary-card.warning .card-icon {
+    color: #ffc107;
+}
+
+.card-content {
+    flex: 1;
+}
+
+.card-value {
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.card-label {
+    color: #666;
+    margin-top: 0.25rem;
+}
+
+.card-sublabel {
+    font-size: 0.875rem;
+    color: #999;
+    margin-top: 0.25rem;
+}
+
+.section-card {
+    background: white;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid #dee2e6;
+}
+
+.section-card.expired {
+    border-top: 3px solid #dc3545;
+}
+
+.section-card.near-expiry {
+    border-top: 3px solid #ffc107;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.section-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.info-card {
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 2rem;
+}
+
+.info-card h4 {
+    color: #0c5460;
+    margin-bottom: 1rem;
+}
+
+.rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.rule-item {
+    color: #0c5460;
+}
+
+.rule-item ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    color: #28a745;
+    margin-bottom: 1rem;
+}
+</style>
+
+<script>
+function toggleAll(checkbox, type) {
+    const checkboxes = document.querySelectorAll(`.product-select.${type}`);
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+function disposeItem(type, id) {
+    if (!confirm('Bạn có chắc chắn muốn hủy lô hàng này?')) {
+        return;
+    }
+    
+    const endpoint = type === 'Kho' ? 'warehouse' : 'shelf';
+    fetch(`/api/inventory/${endpoint}/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Đã hủy lô hàng');
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    });
+}
+
+function disposeExpired() {
+    const selected = [];
+    document.querySelectorAll('.product-select.expired:checked').forEach(cb => {
+        selected.push({
+            type: cb.dataset.inventoryType,
+            id: cb.dataset.inventoryId
+        });
+    });
+    
+    if (selected.length === 0) {
+        alert('Vui lòng chọn sản phẩm cần hủy');
+        return;
+    }
+    
+    if (!confirm(`Hủy ${selected.length} lô hàng đã chọn?`)) {
+        return;
+    }
+    
+    // Process disposal
+    Promise.all(selected.map(item => 
+        fetch(`/api/inventory/${item.type === 'Kho' ? 'warehouse' : 'shelf'}/${item.id}`, {
+            method: 'DELETE'
+        })
+    )).then(() => {
+        alert('Đã hủy các lô hàng đã chọn');
+        location.reload();
+    });
+}
+
+function disposeAllExpired() {
+    if (!confirm('Hủy TẤT CẢ lô hàng hết hạn?')) {
+        return;
+    }
+    
+    fetch('/api/inventory/dispose-all-expired', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+
+function applyDiscount(type, id, discount) {
+    fetch('/inventory/apply-discount', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            inventory_type: type,
+            inventory_id: id,
+            discount_percent: discount
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Đã áp dụng giảm giá');
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    });
+}
+
+function applyAllDiscounts() {
+    if (!confirm('Áp dụng giảm giá cho TẤT CẢ sản phẩm sắp hết hạn?')) {
+        return;
+    }
+    
+    fetch('/inventory/apply-discount', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+
+function applyDiscountToSelected() {
+    const selected = [];
+    document.querySelectorAll('.product-select.near-expiry:checked').forEach(cb => {
+        selected.push({
+            type: cb.dataset.inventoryType,
+            id: cb.dataset.inventoryId
+        });
+    });
+    
+    if (selected.length === 0) {
+        alert('Vui lòng chọn sản phẩm cần áp dụng giảm giá');
+        return;
+    }
+    
+    // Apply discounts
+    Promise.all(selected.map(item => 
+        fetch('/inventory/apply-discount', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                inventory_type: item.type,
+                inventory_id: item.id
+            })
+        })
+    )).then(() => {
+        alert('Đã áp dụng giảm giá cho các sản phẩm đã chọn');
+        location.reload();
+    });
+}
+
+function exportReport() {
+    window.open('/api/inventory/export/expired');
+}
+</script>
+{{end}}

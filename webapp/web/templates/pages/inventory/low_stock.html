@@ -1,0 +1,370 @@
+{{define "pages/inventory/low_stock"}}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>{{.Title}}</h1>
+        <div class="header-actions">
+            <a href="/inventory" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+            <button class="btn btn-success" onclick="createPurchaseOrders()">
+                <i class="fas fa-shopping-cart"></i> Tạo đơn đặt hàng
+            </button>
+            <button class="btn btn-primary" onclick="exportLowStock()">
+                <i class="fas fa-download"></i> Xuất báo cáo
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert Summary -->
+    <div class="alert-summary">
+        <div class="alert alert-info">
+            <strong>Tổng cộng {{.TotalAlerts}} sản phẩm cần xử lý:</strong>
+            <span class="alert-count critical">{{len .CriticalProducts}} hết hàng/cần nhập ngay</span> |
+            <span class="alert-count warning">{{len .WarningProducts}} cần đặt hàng</span> |
+            <span class="alert-count info">{{len .ShelfRefillProducts}} cần bổ sung kệ</span>
+        </div>
+    </div>
+
+    <!-- Critical Products (Out of Stock / Need Immediate Restock) -->
+    {{if .CriticalProducts}}
+    <div class="section-card critical">
+        <div class="section-header">
+            <h3><i class="fas fa-exclamation-circle"></i> Cần nhập hàng ngay</h3>
+            <span class="badge badge-danger">{{len .CriticalProducts}} sản phẩm</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="30">
+                            <input type="checkbox" onchange="toggleAll(this, 'critical')" />
+                        </th>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Đơn vị</th>
+                        <th>Tồn kho</th>
+                        <th>Trên kệ</th>
+                        <th>Tổng</th>
+                        <th>Mức tối thiểu</th>
+                        <th>Doanh số/ngày</th>
+                        <th>Còn đủ (ngày)</th>
+                        <th>Lần cuối nhập</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .CriticalProducts}}
+                    <tr class="table-danger">
+                        <td>
+                            <input type="checkbox" class="product-select critical" data-product-id="{{.ProductID}}" />
+                        </td>
+                        <td>{{.ProductCode}}</td>
+                        <td>
+                            <a href="/products/{{.ProductID}}"><strong>{{.ProductName}}</strong></a>
+                        </td>
+                        <td>{{.CategoryName}}</td>
+                        <td>{{.Unit}}</td>
+                        <td>{{.WarehouseQty}}</td>
+                        <td>{{.ShelfQty}}</td>
+                        <td><strong>{{.TotalQty}}</strong></td>
+                        <td>{{.MinStockLevel}}</td>
+                        <td>{{printf "%.1f" .AverageDailySales}}</td>
+                        <td>
+                            {{if lt .DaysOfStock 1.0}}
+                                <span class="badge badge-danger">Hết hàng</span>
+                            {{else if lt .DaysOfStock 3.0}}
+                                <span class="badge badge-warning">{{printf "%.1f" .DaysOfStock}}</span>
+                            {{else}}
+                                {{printf "%.1f" .DaysOfStock}}
+                            {{end}}
+                        </td>
+                        <td>
+                            {{if .LastRestockDate}}
+                                {{.LastRestockDate.Format "02/01/2006"}}
+                            {{else}}
+                                <span class="text-muted">Chưa nhập</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="createOrder({{.ProductID}})">
+                                <i class="fas fa-cart-plus"></i> Đặt hàng
+                            </button>
+                            {{if and (gt .WarehouseQty 0) (lt .ShelfQty 10)}}
+                            <a href="/inventory/transfer?product={{.ProductID}}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-exchange-alt"></i> Bổ sung
+                            </a>
+                            {{end}}
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Warning Products (Need Reorder) -->
+    {{if .WarningProducts}}
+    <div class="section-card warning">
+        <div class="section-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Cần đặt hàng</h3>
+            <span class="badge badge-warning">{{len .WarningProducts}} sản phẩm</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="30">
+                            <input type="checkbox" onchange="toggleAll(this, 'warning')" />
+                        </th>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Đơn vị</th>
+                        <th>Tồn kho</th>
+                        <th>Trên kệ</th>
+                        <th>Tổng</th>
+                        <th>Mức đặt hàng</th>
+                        <th>% Tồn kho</th>
+                        <th>Doanh số/ngày</th>
+                        <th>Còn đủ (ngày)</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .WarningProducts}}
+                    <tr class="table-warning">
+                        <td>
+                            <input type="checkbox" class="product-select warning" data-product-id="{{.ProductID}}" />
+                        </td>
+                        <td>{{.ProductCode}}</td>
+                        <td>
+                            <a href="/products/{{.ProductID}}"><strong>{{.ProductName}}</strong></a>
+                        </td>
+                        <td>{{.CategoryName}}</td>
+                        <td>{{.Unit}}</td>
+                        <td>{{.WarehouseQty}}</td>
+                        <td>{{.ShelfQty}}</td>
+                        <td><strong>{{.TotalQty}}</strong></td>
+                        <td>{{.ReorderLevel}}</td>
+                        <td>
+                            <div class="progress" style="width: 80px; height: 20px;">
+                                <div class="progress-bar bg-warning" style="width: {{.StockPercentage}}%">
+                                    {{printf "%.0f" .StockPercentage}}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{printf "%.1f" .AverageDailySales}}</td>
+                        <td>
+                            {{if lt .DaysOfStock 7.0}}
+                                <span class="badge badge-warning">{{printf "%.1f" .DaysOfStock}}</span>
+                            {{else}}
+                                {{printf "%.1f" .DaysOfStock}}
+                            {{end}}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="createOrder({{.ProductID}})">
+                                <i class="fas fa-cart-plus"></i> Đặt hàng
+                            </button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Shelf Refill Products -->
+    {{if .ShelfRefillProducts}}
+    <div class="section-card info">
+        <div class="section-header">
+            <h3><i class="fas fa-layer-group"></i> Cần bổ sung kệ</h3>
+            <span class="badge badge-info">{{len .ShelfRefillProducts}} sản phẩm</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="30">
+                            <input type="checkbox" onchange="toggleAll(this, 'refill')" />
+                        </th>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th>Tồn kho</th>
+                        <th>Trên kệ</th>
+                        <th>Cần bổ sung</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ShelfRefillProducts}}
+                    <tr class="table-info">
+                        <td>
+                            <input type="checkbox" class="product-select refill" data-product-id="{{.ProductID}}" />
+                        </td>
+                        <td>{{.ProductCode}}</td>
+                        <td>
+                            <a href="/products/{{.ProductID}}"><strong>{{.ProductName}}</strong></a>
+                        </td>
+                        <td>{{.CategoryName}}</td>
+                        <td class="text-success"><strong>{{.WarehouseQty}}</strong></td>
+                        <td class="text-danger"><strong>{{.ShelfQty}}</strong></td>
+                        <td>
+                            {{if lt .ShelfQty 20}}
+                                <span class="badge badge-info">Cần bổ sung</span>
+                                <br><small class="text-muted">Mục tiêu: 20, hiện tại: {{.ShelfQty}}</small>
+                            {{else}}
+                                <span class="text-muted">Đủ hàng</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <a href="/inventory/transfer?product={{.ProductID}}" class="btn btn-sm btn-success">
+                                <i class="fas fa-exchange-alt"></i> Bổ sung kệ
+                            </a>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{end}}
+
+    {{if eq .TotalAlerts 0}}
+    <div class="empty-state">
+        <i class="fas fa-check-circle"></i>
+        <h3>Không có cảnh báo tồn kho</h3>
+        <p>Tất cả sản phẩm đều có mức tồn kho phù hợp</p>
+        <a href="/inventory" class="btn btn-primary">Quay lại tổng quan</a>
+    </div>
+    {{end}}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.alert-summary {
+    margin-bottom: 2rem;
+}
+
+.alert-summary .alert {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.alert-count {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+}
+
+.alert-count.critical {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.alert-count.warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.alert-count.info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.section-card {
+    background: white;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid #dee2e6;
+}
+
+.section-card.critical {
+    border-left: 4px solid #dc3545;
+}
+
+.section-card.warning {
+    border-left: 4px solid #ffc107;
+}
+
+.section-card.info {
+    border-left: 4px solid #17a2b8;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.section-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    color: #28a745;
+    margin-bottom: 1rem;
+}
+
+.progress {
+    background: #e9ecef;
+}
+</style>
+
+<script>
+function toggleAll(checkbox, type) {
+    const checkboxes = document.querySelectorAll(`.product-select.${type}`);
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+function createOrder(productId) {
+    window.location.href = `/purchase-orders/new?product=${productId}`;
+}
+
+function createPurchaseOrders() {
+    const selectedProducts = [];
+    document.querySelectorAll('.product-select:checked').forEach(cb => {
+        selectedProducts.push(cb.dataset.productId);
+    });
+    
+    if (selectedProducts.length === 0) {
+        alert('Vui lòng chọn ít nhất một sản phẩm');
+        return;
+    }
+    
+    window.location.href = `/purchase-orders/new?products=${selectedProducts.join(',')}`;
+}
+
+function exportLowStock() {
+    window.open('/api/inventory/export/low-stock');
+}
+</script>
+{{end}}

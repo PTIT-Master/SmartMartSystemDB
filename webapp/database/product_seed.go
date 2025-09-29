@@ -178,6 +178,18 @@ func seedDisplayShelves(tx *gorm.DB, categoryMap map[string]uint) (map[string]ui
 		{ShelfCode: "SH008", ShelfName: "Quầy mỹ phẩm", CategoryID: categoryMap["Mỹ phẩm - Chăm sóc da"], Location: strPtr("Khu G - Tầng 1"), MaxCapacity: intPtr(250)},
 		{ShelfCode: "SH009", ShelfName: "Quầy thời trang", CategoryID: categoryMap["Thời trang - Unisex"], Location: strPtr("Khu H - Tầng 1"), MaxCapacity: intPtr(200)},
 		{ShelfCode: "SH010", ShelfName: "Quầy đồ bếp", CategoryID: categoryMap["Đồ bếp"], Location: strPtr("Khu I - Tầng 1"), MaxCapacity: intPtr(150)},
+
+		// Additional shelves for missing categories
+		{ShelfCode: "SH011", ShelfName: "Quầy thực phẩm thịt cá", CategoryID: categoryMap["Thực phẩm - Thịt cá"], Location: strPtr("Khu J - Tầng 1"), MaxCapacity: intPtr(400)},
+		{ShelfCode: "SH012", ShelfName: "Quầy đồ uống nóng", CategoryID: categoryMap["Đồ uống - Nóng"], Location: strPtr("Khu K - Tầng 1"), MaxCapacity: intPtr(300)},
+		{ShelfCode: "SH013", ShelfName: "Quầy sữa trứng", CategoryID: categoryMap["Thực phẩm - Sữa trứng"], Location: strPtr("Khu L - Tầng 1"), MaxCapacity: intPtr(350)},
+		{ShelfCode: "SH014", ShelfName: "Quầy vệ sinh cá nhân", CategoryID: categoryMap["Mỹ phẩm - Vệ sinh cá nhân"], Location: strPtr("Khu M - Tầng 1"), MaxCapacity: intPtr(250)},
+		{ShelfCode: "SH015", ShelfName: "Quầy thời trang nam", CategoryID: categoryMap["Thời trang - Nam"], Location: strPtr("Khu N - Tầng 1"), MaxCapacity: intPtr(200)},
+		{ShelfCode: "SH016", ShelfName: "Quầy thời trang nữ", CategoryID: categoryMap["Thời trang - Nữ"], Location: strPtr("Khu O - Tầng 1"), MaxCapacity: intPtr(200)},
+
+		// Missing shelves for "record not found" categories
+		{ShelfCode: "SH017", ShelfName: "Quầy đồ uống có cồn", CategoryID: categoryMap["Đồ uống - Có cồn"], Location: strPtr("Khu P - Tầng 1"), MaxCapacity: intPtr(250)},
+		{ShelfCode: "SH018", ShelfName: "Quầy mỹ phẩm trang điểm", CategoryID: categoryMap["Mỹ phẩm - Trang điểm"], Location: strPtr("Khu Q - Tầng 1"), MaxCapacity: intPtr(150)},
 	}
 
 	if err := tx.Create(&shelves).Error; err != nil {
